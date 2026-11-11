@@ -1,0 +1,95 @@
+* { box-sizing: border-box; }
+:root { color-scheme: light; background: #f6f7f0; color: #203a33; font-family: "Noto Sans Devanagari", "Nirmala UI", Mangal, system-ui, sans-serif; }
+body { margin: 0; }
+button, input { font: inherit; }
+button { min-height: 48px; padding: .55rem 1.15rem; border: 1px solid #9caf9f; border-radius: .7rem; color: inherit; background: #fff; cursor: pointer; }
+button:focus-visible, input:focus-visible { outline: 3px solid #255e50; outline-offset: 3px; }
+button:disabled { opacity: .56; cursor: default; }
+button.primary { background: #255e50; color: #fff; border-color: #255e50; }
+button.quiet { border-color: transparent; background: transparent; }
+header { display: flex; align-items: center; gap: .65rem; padding: .5rem max(1rem, env(safe-area-inset-right)); border-bottom: 1px solid #d9e2d8; background: #fff; }
+header strong { font-size: 1.4rem; }
+header .stars { margin-left: auto; color: #715216; }
+main { max-width: 64rem; margin: 0 auto; padding: 1rem 1.4rem 2rem; }
+h1, h2, p { margin: .35rem 0 .75rem; }
+h1 { font-size: clamp(1.65rem, 4vw, 2.25rem); }
+h2 { font-size: 1.4rem; }
+.cards, .actions { display: flex; flex-wrap: wrap; gap: .65rem; margin: .7rem 0; }
+.cards button { min-width: 8rem; font-size: 1.25rem; }
+.cards small { display: block; font-size: .8rem; }
+.passage { background: #fff; padding: 1rem 1.25rem; border-radius: .7rem; font-size: 1.45rem; line-height: 1.65; }
+.reward { font-size: 1.45rem; color: #715216; }
+.ink-scroll { overflow-x: auto; }
+.ink-grid {
+    display: grid;
+    width: max-content;
+    grid-template-columns: repeat(var(--columns), var(--cell));
+    background-color: #fff;
+}
+.ink-grid canvas {
+    display: block;
+    width: var(--cell);
+    height: var(--height);
+    touch-action: none;
+    user-select: none;
+}
+.ink-grid canvas.spacer { visibility: hidden; }
+
+.ink-square .ink-grid {
+    --rule: #b8c2c9;
+    background:
+        linear-gradient(var(--rule), var(--rule)) right / 1px 100% no-repeat,
+        linear-gradient(var(--rule), var(--rule)) bottom / 100% 1px no-repeat,
+        repeating-linear-gradient(to right, var(--rule) 0 1px, transparent 1px var(--cell)),
+        repeating-linear-gradient(to bottom, var(--rule) 0 1px, transparent 1px var(--height)),
+        #fff;
+}
+.ink-square .ink-grid canvas[hidden],
+.ink-square .ink-grid canvas.spacer { display: none; }
+
+.ink-hindi .ink-grid {
+    --band: calc(var(--height) / 3);
+    --baseline: calc(2 * var(--band));
+    --rule: #bdbdbd;
+    position: relative;
+    background:
+        linear-gradient(to bottom,
+            transparent 0 var(--band),
+            var(--rule) var(--band) calc(var(--band) + 1px),
+            transparent calc(var(--band) + 1px) var(--baseline),
+            var(--rule) var(--baseline) calc(var(--baseline) + 1px),
+            transparent calc(var(--baseline) + 1px)
+        ) top left / 100% var(--height) repeat-y,
+        #fff;
+}
+.ink-hindi-trace .ink-grid::before {
+    content: "";
+    position: absolute;
+    inset: calc(var(--height) + var(--band)) 0 var(--band) var(--cell);
+    background: repeating-linear-gradient(to right, #d6d6d6 0 1px, transparent 1px var(--cell));
+    pointer-events: none;
+}
+.ink-status { min-height: 1.5em; }
+.parent label { display: flex; align-items: center; gap: .7rem; margin: .75rem 0; }
+.parent input:not([type=range]) { max-width: 11rem; padding: .6rem; }
+.parent h2 { margin-top: 1.25rem; }
+.calibration-square {
+    outline: 1px solid #255e50;
+    background: #fff;
+    margin: 2px;
+    display: grid;
+    place-items: center;
+}
+.calibration .actions label { display: grid; gap: .35rem; }
+[role=alert] { color: #8b2618; }
+
+.picture-cue { font-size: 2.5rem; letter-spacing: .2em; }
+details { margin: .55rem 0; }
+summary { padding: .55rem 0; cursor: pointer; }
+button[aria-pressed="true"] { border-color: #255e50; box-shadow: inset 0 0 0 1px #255e50; }
+
+.count-objects { display: flex; flex-wrap: wrap; gap: .6rem; font-size: 2rem; margin: .75rem 0; }
+.authoring label { display: block; margin: .55rem 0; }
+.authoring input, .authoring select, .authoring textarea { display: block; width: min(100%, 32rem); padding: .55rem; font: inherit; }
+.authoring textarea { min-height: 5rem; }
+.authoring fieldset { margin: 1rem 0; border: 1px solid #adbdb1; border-radius: .5rem; }

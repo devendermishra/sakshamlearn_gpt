@@ -1,0 +1,10 @@
+[application]
+name = "saksham"
+default_platform = "desktop"
+
+[bundle]
+identifier = "org.saksham.learn"
+publisher = "Saksham"
+
+[android]
+compile_sdk = 35
