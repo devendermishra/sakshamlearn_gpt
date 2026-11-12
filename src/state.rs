@@ -1,4 +1,5 @@
-use crate::content::{CustomCatalog, Paper};
+use crate::content::{generate_practice, CustomCatalog, GeneratedPractice, Paper, PracticeSkill};
+use crate::language::Language;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -16,6 +17,7 @@ pub type Ink = Vec<Vec<Stroke>>;
 #[serde(default)]
 pub struct State {
     pub catalog: CustomCatalog,
+    pub math_language: Language,
     #[serde(skip_serializing_if = "Option::is_none")]
     session: Option<Session>,
     pub sessions: BTreeMap<String, Session>,
@@ -36,6 +38,36 @@ pub struct Session {
     pub step: usize,
     pub review: bool,
     pub missed: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generated: Option<GeneratedPractice>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub helper: Option<HelperDraft>,
+}
+
+impl Session {
+    pub fn new(subject: String, topic: String, review: bool) -> Self {
+        Self {
+            subject,
+            topic,
+            step: 0,
+            review,
+            missed: false,
+            generated: None,
+            helper: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct HelperDraft {
+    pub first: Option<Ink>,
+    pub second: Option<Ink>,
+    pub borrowed_tens: bool,
+    pub borrowed_ones: bool,
+    pub carried: bool,
+    pub ones_checked: bool,
+    pub tens_checked: bool,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -44,6 +76,10 @@ pub struct Sample {
     pub paper: Paper,
     pub label: String,
     pub model: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub solution: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub correct: Option<bool>,
     pub ink: Ink,
     #[serde(default)]
     pub saved_on: Option<String>,
@@ -119,6 +155,22 @@ pub fn day() -> u64 {
 }
 
 impl State {
+    pub fn start_generated(
+        &mut self,
+        grade: u8,
+        skill: PracticeSkill,
+        seed: u64,
+    ) -> Option<String> {
+        let id = skill.id(grade);
+        let key = session_key("math", &id, false);
+        if let std::collections::btree_map::Entry::Vacant(entry) = self.sessions.entry(key) {
+            let mut session = Session::new("math".into(), id.clone(), false);
+            session.generated = Some(generate_practice(grade, skill, seed)?);
+            entry.insert(session);
+        }
+        Some(id)
+    }
+
     pub fn due_review_count(&self, today: u64) -> usize {
         self.catalog
             .subjects()
@@ -237,6 +289,8 @@ mod tests {
         state.samples.insert(
             "sample".into(),
             Sample {
+                solution: None,
+                correct: None,
                 label: "स्वर".into(),
                 paper: Paper::Hindi,
                 model: "अ".into(),

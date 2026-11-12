@@ -1,10 +1,11 @@
-const {id, model, initial, readonly, square, lines, allowMouse} = config;
+const {id, model, initial, readonly, square, digitWidth = 0, blankColumns = 1, noteColumns = 0, lines, allowMouse, english} = config;
 const container = document.getElementById(id);
 if (!container) return;
 
-const columns = model ? 6 : 1;
-const count = model ? 12 : lines;
+const columns = model ? (digitWidth ? 2 * digitWidth : 6) : blankColumns;
+const count = noteColumns + columns * (model ? 2 : lines);
 const grid = container.querySelector(".ink-grid");
+const notes = container.querySelector(".regroup-grid");
 const ink = Array.from({length: count}, (_, i) => initial[i] ?? []);
 const cells = [];
 const message = container.querySelector("[role=status]");
@@ -12,14 +13,25 @@ let active = null;
 let latest = -1;
 let submitted = false;
 const history = [];
+const text = (hindi, translation) => english ? translation : hindi;
 
 function paper(index) {
     const canvas = document.createElement("canvas");
     canvas.width = square ? 216 : model ? 240 : 720;
     canvas.height = 216;
     canvas.dataset.cell = index;
-    canvas.setAttribute("aria-label", index === 0 && model ? "नमूना" : "लिखने की जगह");
-    grid.append(canvas);
+    if (index < noteColumns) {
+        const label = noteColumns === 1
+            ? text("आगे जाने वाली दहाई", "Carried ten")
+            : index === 0 ? text("नई दहाई", "New tens") : text("नई इकाइयाँ", "New ones");
+        canvas.setAttribute("aria-label", label);
+        notes.append(canvas);
+    } else {
+        canvas.setAttribute("aria-label", index === 0 && model && !digitWidth
+            ? text("नमूना", "Example")
+            : text("लिखने की जगह", "Writing space"));
+        grid.append(canvas);
+    }
     return canvas;
 }
 
@@ -69,9 +81,9 @@ function draw(index) {
     const canvas = cells[index];
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (model && index === 0) glyph(ctx, model, "model");
-    if (model && index > 0 && index < columns) {
-        const mask = template(canvas);
+    if (model && !digitWidth && index === 0) glyph(ctx, model, "model");
+    if (isTraceCell(index)) {
+        const mask = template(canvas, index);
         ctx.fillStyle = "#84918b";
         for (let y = 0; y < canvas.height; y += 5) {
             for (let x = 0; x < canvas.width; x += 5) {
@@ -82,20 +94,29 @@ function draw(index) {
     for (const stroke of ink[index]) line(ctx, stroke, "#223c37", 5);
 }
 
-let reference;
-function template(canvas) {
-    return reference ??= raster(canvas, ctx => glyph(ctx, model, "model"));
+function isTraceCell(index) {
+    return !!model && index >= (digitWidth ? 0 : 1) && index < columns;
+}
+
+const references = new Map();
+function template(canvas, index) {
+    const character = digitWidth ? model[index % digitWidth] : model;
+    if (!references.has(character)) {
+        references.set(character, raster(canvas, ctx => glyph(ctx, character, "model")));
+    }
+    return references.get(character);
 }
 
 function feedback() {
-    if (!model || latest < 1 || latest >= columns || !ink[latest].length) return;
+    if (!isTraceCell(latest) || !ink[latest].length) return;
     const canvas = cells[latest];
-    const mask = template(canvas);
+    const mask = template(canvas, latest);
     const thinInk = raster(canvas, ctx => ink[latest].forEach(stroke => line(ctx, stroke, "#000", 5)));
     const wideInk = raster(canvas, ctx => ink[latest].forEach(stroke => line(ctx, stroke, "#000", 24)));
     const {width, height} = canvas;
     message.textContent = tracePasses(mask, thinInk, wideInk, width, height)
-        ? "बढ़िया, रेखा नमूने के पास है।" : "बिंदियों को देखकर एक बार और लिख सकते हो।";
+        ? text("बढ़िया, रेखा नमूने के पास है।", "Good tracing. Your strokes follow the example.")
+        : text("बिंदियों को देखकर एक बार और लिख सकते हो।", "Look at the dots and try tracing again.");
 }
 
 function update() {
@@ -111,7 +132,7 @@ function point(event, canvas) {
 }
 
 function bind(canvas, index) {
-    if (readonly || (model && (index === 0 || index === columns))) return;
+    if (readonly || (model && !digitWidth && (index === 0 || index === columns))) return;
     canvas.addEventListener("pointerdown", event => {
         const accepted = event.pointerType === "pen" || (allowMouse && event.pointerType === "mouse");
         if (submitted || active || !accepted || event.button !== 0) return;
@@ -147,10 +168,17 @@ function bind(canvas, index) {
 for (let i = 0; i < count; i++) {
     cells.push(paper(i));
     for (const _ of ink[i]) history.push(i);
-    if (model && i === columns) cells[i].classList.add("spacer");
-    if (square && model && i === 0) cells[i].hidden = true;
+    if (model && !digitWidth && i === columns) cells[i].classList.add("spacer");
+    if (square && model && !digitWidth && i === 0) cells[i].hidden = true;
     draw(i);
     bind(cells[i], i);
+}
+
+function hasCompleteCopy(rowStart) {
+    for (let start = rowStart; start < rowStart + columns; start += digitWidth) {
+        if (ink.slice(start, start + digitWidth).every(cell => cell.length)) return true;
+    }
+    return false;
 }
 
 if (!readonly) {
@@ -169,15 +197,24 @@ if (!readonly) {
         cells.forEach((_, i) => draw(i));
         update();
     };
-    container.querySelector("[data-done]").onclick = () => {
+    const done = container.querySelector("[data-done]");
+    if (done) done.onclick = () => {
         if (active || submitted) return;
-        if (!ink.some(cell => cell.length)) {
-            message.textContent = "पहले पेन से लिखो।";
+        if (noteColumns && !ink.slice(noteColumns).some(cell => cell.length)) {
+            message.textContent = text("पहले रेखा के नीचे जवाब लिखो।", "Write the answer below the line first.");
             return;
         }
-        if (model && (!ink.slice(1, columns).some(cell => cell.length) ||
+        if (!ink.some(cell => cell.length)) {
+            message.textContent = text("पहले पेन से लिखो।", "Write with the pen first.");
+            return;
+        }
+        if (digitWidth && (!hasCompleteCopy(0) || !hasCompleteCopy(columns))) {
+            message.textContent = text("ऊपर और नीचे कम से कम एक बार पूरी संख्या लिखो।", "Write the whole number at least once on each row.");
+            return;
+        }
+        if (model && !digitWidth && (!ink.slice(1, columns).some(cell => cell.length) ||
             !ink.slice(columns + 1).some(cell => cell.length))) {
-            message.textContent = "बिंदियों पर और खाली जगह में लिखो।";
+            message.textContent = text("बिंदियों पर और खाली जगह में लिखो।", "Write on the dots and in the blank space.");
             return;
         }
         submitted = true;

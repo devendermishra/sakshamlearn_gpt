@@ -83,6 +83,12 @@ pub fn Parent(
                     if let Some(sample) = samples.get(&id) {
                         InkPad { key: "{id}", id: "review-ink", model: sample.model.clone(),
                             initial: sample.ink.clone(), scale, lines: sample.lines, paper: sample.paper, readonly: true }
+                        if let Some(solution) = &sample.solution {
+                            p { strong { "Solution " } "{solution}" }
+                        }
+                        if let Some(correct) = sample.correct {
+                            p { if correct { "Correct answer entered" } else { "Worked solution opened after an incorrect answer" } }
+                        }
                     }
                 }
             }

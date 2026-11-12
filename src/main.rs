@@ -1,6 +1,8 @@
 mod activity;
 mod authoring;
 mod content;
+mod language;
+mod math_help;
 mod parent;
 mod platform;
 mod progress;
@@ -8,8 +10,9 @@ mod state;
 mod writing;
 
 use activity::Activity;
-use content::{CustomCatalog, Kind, Topic};
+use content::{CustomCatalog, Kind, PracticeSkill, Topic};
 use dioxus::prelude::*;
+use language::Language;
 use progress::{Outcome, Step};
 use state::{Session, State};
 use std::path::PathBuf;
@@ -24,6 +27,7 @@ enum Page {
     Subjects,
     Subject,
     Group,
+    Generated,
     Session,
     Break,
     Done(bool),
@@ -94,17 +98,19 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
         let mut next = data.peek().clone();
         let key = state::session_key(&subject, &topic, review);
         if let std::collections::btree_map::Entry::Vacant(entry) = next.sessions.entry(key) {
-            entry.insert(Session {
-                subject,
-                topic: topic.clone(),
-                step: 0,
-                review,
-                missed: false,
-            });
+            entry.insert(Session::new(subject, topic.clone(), review));
             commit.call(next);
         }
         active.set(Some((topic, review)));
         page.set(Page::Session);
+    });
+    let start_generated = use_callback(move |skill: PracticeSkill| {
+        let mut next = data.peek().clone();
+        if let Some(id) = next.start_generated(grade(), skill, rand::random()) {
+            commit.call(next);
+            active.set(Some((id, false)));
+            page.set(Page::Session);
+        }
     });
 
     let snapshot = data.read();
@@ -114,9 +120,42 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
         .subjects()
         .find(|item| item.id == selected)
         .unwrap_or(&content::BUNDLED[0]);
-    let subject_name = subject.name.clone();
+    let math_selected = subject.id == "math";
+    let language = if math_selected && page() != Page::Subjects {
+        snapshot.math_language
+    } else {
+        Language::Hindi
+    };
+    let subject_name = if math_selected {
+        language.text("गणित", "Mathematics").to_owned()
+    } else {
+        subject.name.clone()
+    };
+    let other_language = match language {
+        Language::Hindi => Language::English,
+        Language::English => Language::Hindi,
+    };
+    let language_label = other_language.text("हिंदी", "English");
+    let grade_label = language.text("कक्षा", "Class");
+    let recall_label = language.text("फिर याद करो", "Recall");
+    let practice_label = language.text("अभ्यास", "Practice");
+    let new_practice_label = language.text("नया अभ्यास", "New practice");
+    let back_to_subject = match language {
+        Language::Hindi => format!("{subject_name} पर लौटो"),
+        Language::English => format!("Back to {subject_name}"),
+    };
     let stars = snapshot.finished.len();
-    let topics: Vec<_> = snapshot.catalog.topics(subject).collect();
+    let topics: Vec<_> = snapshot
+        .catalog
+        .topics(subject)
+        .map(|topic| {
+            if language == Language::English {
+                content::english_math_topic(topic)
+            } else {
+                topic
+            }
+        })
+        .collect();
     let grades: std::collections::BTreeSet<_> = topics.iter().map(|topic| topic.grade).collect();
     let mut groups = Vec::new();
     for topic in topics.iter().filter(|topic| topic.grade == grade()) {
@@ -141,12 +180,18 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
     due.truncate(2);
     let group = groups.iter().find(|group| group.id == group_id());
     let active_step = active().and_then(|(id, review)| {
-        let topic = topics.iter().find(|topic| topic.progress_id() == id)?;
         let session = snapshot
             .sessions
             .get(&state::session_key(&subject.id, &id, review))?;
-        Some((*topic, session))
+        let topic = if let Some(set) = &session.generated {
+            set.topic(language)
+        } else {
+            *topics.iter().find(|topic| topic.progress_id() == id)?
+        };
+        Some((topic, session))
     });
+    let generated_round =
+        math_selected && active().is_some_and(|(id, _)| id.starts_with("new-practice-"));
 
     let body = match page() {
         Page::Subjects => rsx! {
@@ -156,14 +201,19 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                     {
                         let id = item.id.clone();
                         let default_grade = snapshot.catalog.topics(item).map(|topic| topic.grade).max();
+                        let (name, lang) = if id == "math" {
+                            (snapshot.math_language.text("गणित", "Mathematics"), snapshot.math_language.code())
+                        } else {
+                            (item.name.as_str(), "hi")
+                        };
                         rsx! {
-                            button { key: "{id}", disabled: default_grade.is_none(),
+                            button { key: "{id}", lang, disabled: default_grade.is_none(),
                                 onclick: move |_| {
                                     subject_id.set(id.clone());
                                     if let Some(level) = default_grade { grade.set(level); }
                                     page.set(Page::Subject);
                                 },
-                                "{item.name}"
+                                "{name}"
                                 if default_grade.is_none() { small { "जल्द आएगा" } }
                             }
                         }
@@ -172,18 +222,21 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
             }
         },
         Page::Subject => rsx! {
-            h1 { "{subject.name}" }
-            div { class: "cards", aria_label: "कक्षा चुनो",
+            h1 { "{subject_name}" }
+            div { class: "cards", aria_label: language.text("कक्षा चुनो", "Choose a class"),
                 for level in grades {
                     button { key: "{level}", class: if grade() == level { "primary" } else { "" },
-                        aria_pressed: grade() == level, onclick: move |_| grade.set(level), "कक्षा {level}" }
+                        aria_pressed: grade() == level, onclick: move |_| grade.set(level), "{grade_label} {level}" }
                 }
             }
+            if math_selected {
+                button { class: "primary", onclick: move |_| page.set(Page::Generated), "{new_practice_label}" }
+            }
             if !due.is_empty() {
-                h2 { "फिर याद करो" }
+                h2 { "{recall_label}" }
                 div { class: "cards",
                     for (_, topic) in due {
-                        { topic_button(&snapshot, &subject.id, topic, true, start) }
+                        { topic_button(&snapshot, &subject.id, topic, true, start, language) }
                     }
                 }
             }
@@ -201,7 +254,7 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                         if !group.guidance.is_empty() { p { "{group.guidance}" } }
                         div { class: "cards",
                             for topic in topics.iter().filter(|topic| topic.grade == grade() && topic.group.id == group.id) {
-                                { topic_button(&snapshot, &subject.id, topic, false, start) }
+                                { topic_button(&snapshot, &subject.id, topic, false, start, language) }
                             }
                         }
                     }
@@ -214,7 +267,24 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                 p { "{group.guidance}" }
                 div { class: "cards",
                     for topic in topics.iter().filter(|topic| topic.grade == grade() && topic.group.id == group.id) {
-                        { topic_button(&snapshot, &subject.id, topic, false, start) }
+                        { topic_button(&snapshot, &subject.id, topic, false, start, language) }
+                    }
+                }
+            }
+        },
+        Page::Generated => rsx! {
+            h1 { "{new_practice_label}" }
+            div { class: "cards",
+                for &skill in PracticeSkill::for_grade(grade()) {
+                    {
+                        let id = skill.id(grade());
+                        let resume = snapshot.sessions.contains_key(&state::session_key("math", &id, false));
+                        rsx! {
+                            button { key: "{id}", onclick: move |_| start_generated.call(skill),
+                                {skill.label(language)}
+                                if resume { small { {language.text("जारी रखो", "Resume")} } }
+                            }
+                        }
                     }
                 }
             }
@@ -245,6 +315,7 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                     )
                 });
                 let ink = step.ink(&snapshot);
+                let helper_draft = session.helper.clone().unwrap_or_default();
                 let activity_key = format!("{}-{review}-{index}", step.key());
                 let total = topic.exercises.len();
                 let title = topic.title.clone();
@@ -252,8 +323,8 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                 rsx! {
                   section { key: "{activity_key}",
                     h1 { "{title}" }
-                    if recall { h2 { "फिर याद करो" } } else { p { class: "step", "अभ्यास {index + 1} / {total}" } }
-                    Activity { kind, initial: ink, scale, recall,
+                    if recall { h2 { "{recall_label}" } } else { p { class: "step", "{practice_label} {index + 1} / {total}" } }
+                    Activity { kind, initial: ink, helper_draft, scale, recall, language,
                         on_input: move |input| {
                             let mut next = data.peek().clone();
                             let step = Step { subject: &subject, topic: &topic, review, index };
@@ -267,21 +338,25 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                             }
                         }
                     }
-                    button { class: "quiet", onclick: move |_| page.set(Page::Break), "आराम" }
+                    button { class: "quiet", onclick: move |_| page.set(Page::Break), {language.text("आराम", "Take a break")} }
                   }
                 }
             } else {
-                rsx! { button { onclick: move |_| page.set(Page::Subject), "विषय पर लौटो" } }
+                rsx! { button { onclick: move |_| page.set(Page::Subject), "{back_to_subject}" } }
             }
         }
         Page::Break => rsx! {
-            h1 { "थोड़ा आराम" }
-            button { class: "primary", onclick: move |_| page.set(Page::Session), "अभ्यास जारी रखो" }
+            h1 { {language.text("थोड़ा आराम", "Take a short break")} }
+            button { class: "primary", onclick: move |_| page.set(Page::Session), {language.text("अभ्यास जारी रखो", "Continue practice")} }
         },
         Page::Done(awarded) => rsx! {
-            h1 { "अभ्यास पूरा" }
-            if awarded { p { class: "reward", "★ एक सितारा" } }
-            button { class: "primary", onclick: move |_| page.set(Page::Subject), "{subject_name} पर लौटो" }
+            h1 { {language.text("अभ्यास पूरा", "Practice complete")} }
+            if awarded { p { class: "reward", {language.text("★ एक सितारा", "★ One star")} } }
+            if generated_round {
+                button { class: "primary", onclick: move |_| page.set(Page::Generated), "{new_practice_label}" }
+            } else {
+                button { class: "primary", onclick: move |_| page.set(Page::Subject), "{back_to_subject}" }
+            }
         },
         Page::Parent => rsx! { parent::Parent { data, commit, publish, save_calibration } },
     };
@@ -290,23 +365,30 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
     rsx! {
         document::Title { "Saksham" }
         style { {include_str!("style.css")} }
-        div { class: "app", lang: "hi",
+        div { class: "app", lang: language.code(),
             header {
                 if page() == Page::Subject {
-                    button { class: "quiet", onclick: move |_| page.set(Page::Subjects), "‹ विषय" }
+                    button { class: "quiet", onclick: move |_| page.set(Page::Subjects), {language.text("‹ विषय", "‹ Subjects")} }
                 } else if page() != Page::Subjects {
                     button { class: "quiet", onclick: move |_| page.set(Page::Subject), "⌂ {subject_name}" }
                 }
-                strong { "सक्षम" }
+                strong { {language.text("सक्षम", "Saksham")} }
                 span { class: "stars", "★ {stars}" }
+                if math_selected && !matches!(page(), Page::Subjects | Page::Parent) {
+                    button { lang: other_language.code(), onclick: move |_| {
+                        let mut next = data.peek().clone();
+                        next.math_language = other_language;
+                        commit.call(next);
+                    }, "{language_label}" }
+                }
                 if page() != Page::Parent {
-                    button { class: "quiet", onclick: move |_| page.set(Page::Parent), "बड़ों के लिए" }
+                    button { class: "quiet", onclick: move |_| page.set(Page::Parent), {language.text("बड़ों के लिए", "For parents")} }
                 }
             }
             main {
                 if save_error() {
                     p { role: "alert", "अभ्यास सहेजा नहीं जा सका। · Progress could not be saved." }
-                    button { onclick: move |_| { let next = data.peek().clone(); commit.call(next); }, "फिर सहेजें" }
+                    button { onclick: move |_| { let next = data.peek().clone(); commit.call(next); }, {language.text("फिर सहेजें", "Try saving again")} }
                 }
                 {body}
             }
@@ -320,6 +402,7 @@ fn topic_button(
     topic: &Topic,
     review: bool,
     start: Callback<(String, bool)>,
+    language: Language,
 ) -> Element {
     let id = topic.progress_id();
     let paused = state
@@ -329,7 +412,8 @@ fn topic_button(
     rsx! {
         button { key: "{id}", onclick: move |_| start.call((id.clone(), review)),
             "{topic.title}"
-            if paused { small { "जारी रखो" } } else if finished { small { "फिर अभ्यास करो" } }
+            if paused { small { {language.text("जारी रखो", "Resume")} } }
+            else if finished { small { {language.text("फिर अभ्यास करो", "Practise again")} } }
         }
     }
 }

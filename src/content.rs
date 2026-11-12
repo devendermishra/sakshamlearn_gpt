@@ -1,6 +1,8 @@
 mod hindi;
 mod mathematics;
+pub use mathematics::{generate_practice, GeneratedPractice, PracticeSkill};
 
+use crate::language::Language;
 use serde::{Deserialize, Serialize};
 use std::sync::LazyLock;
 
@@ -114,6 +116,19 @@ pub enum Paper {
     #[default]
     Hindi,
     Digit,
+    Notebook,
+    NotebookCarry,
+    NotebookBorrow,
+}
+
+impl Paper {
+    pub fn regrouping_cells(self) -> usize {
+        match self {
+            Self::NotebookCarry => 1,
+            Self::NotebookBorrow => 3,
+            _ => 0,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -127,6 +142,17 @@ pub enum Kind {
         paper: Paper,
     },
     Compose(String, usize, Option<String>),
+    Solve {
+        prompt: String,
+        solution: String,
+        lines: usize,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        answer: Vec<u8>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        helper: Option<ArithmeticHelp>,
+        #[serde(default)]
+        notebook: bool,
+    },
     Listen(String, Question),
     Talk {
         picture: String,
@@ -141,20 +167,71 @@ pub enum Kind {
     },
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Operation {
+    Add,
+    Subtract,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ArithmeticHelp {
+    pub left: u8,
+    pub right: u8,
+    pub operation: Operation,
+    pub place_value: bool,
+}
+
+impl ArithmeticHelp {
+    pub fn notebook_paper(self) -> Paper {
+        let (left, right) = (self.left % 10, self.right % 10);
+        match self.operation {
+            Operation::Add if left + right >= 10 => Paper::NotebookCarry,
+            Operation::Subtract if left < right => Paper::NotebookBorrow,
+            _ => Paper::Notebook,
+        }
+    }
+
+    pub fn answer(self) -> u8 {
+        match self.operation {
+            Operation::Add => self.left + self.right,
+            Operation::Subtract => self.left - self.right,
+        }
+    }
+}
+
 pub struct Writing<'a> {
     pub label: &'a str,
     pub model: &'a str,
     pub lines: usize,
     pub paper: Paper,
+    pub solution: Option<&'a str>,
 }
 
 impl Kind {
     pub fn writing(&self) -> Option<Writing<'_>> {
-        let (label, model, lines, paper) = match self {
-            Self::Trace { model, paper, .. } => (model.as_str(), model.as_str(), 1, *paper),
-            Self::Compose(prompt, lines, _) => (prompt.as_str(), "", *lines, Paper::Hindi),
-            Self::Talk { prompt, .. } => (prompt.as_str(), "", 1, Paper::Hindi),
-            Self::Answer(_, question) => (question.prompt.as_str(), "", 1, Paper::Hindi),
+        let (label, model, lines, paper, solution) = match self {
+            Self::Trace { model, paper, .. } => (model.as_str(), model.as_str(), 1, *paper, None),
+            Self::Compose(prompt, lines, _) => (prompt.as_str(), "", *lines, Paper::Hindi, None),
+            Self::Talk { prompt, .. } => (prompt.as_str(), "", 1, Paper::Hindi, None),
+            Self::Answer(_, question) => (question.prompt.as_str(), "", 1, Paper::Hindi, None),
+            Self::Solve {
+                prompt,
+                solution,
+                lines,
+                notebook,
+                helper,
+                ..
+            } => (
+                prompt.as_str(),
+                "",
+                *lines,
+                if *notebook {
+                    helper.map_or(Paper::Notebook, ArithmeticHelp::notebook_paper)
+                } else {
+                    Paper::Digit
+                },
+                Some(solution.as_str()),
+            ),
             Self::Choice(_) | Self::Read(..) | Self::Listen(..) | Self::Count { .. } => {
                 return None
             }
@@ -164,6 +241,7 @@ impl Kind {
             model,
             lines,
             paper,
+            solution,
         })
     }
 
@@ -176,6 +254,27 @@ impl Kind {
             | Self::Answer(text, question) => filled(text) && question.valid(),
             Self::Trace { model, .. } => filled(model),
             Self::Compose(prompt, lines, _) => filled(prompt) && (1..=5).contains(lines),
+            Self::Solve {
+                prompt,
+                solution,
+                lines,
+                helper,
+                answer,
+                notebook,
+            } => {
+                filled(prompt)
+                    && filled(solution)
+                    && (1..=5).contains(lines)
+                    && (!*notebook || (*lines == 1 && helper.is_some()))
+                    && helper.is_none_or(|helper| {
+                        helper.left <= 99
+                            && helper.right <= 99
+                            && (helper.place_value || (helper.left <= 19 && helper.right <= 19))
+                            && (helper.operation == Operation::Add || helper.left >= helper.right)
+                            && answer.as_slice() == [helper.answer()]
+                            && (!*notebook || helper.answer() < 100)
+                    })
+            }
             Self::Talk { prompt, .. } => filled(prompt),
             Self::Count {
                 quantity,
@@ -208,10 +307,18 @@ pub static BUNDLED: LazyLock<Vec<Subject>> = LazyLock::new(|| {
         Subject {
             id: "math".into(),
             name: "गणित".into(),
-            topics: mathematics::topics(),
+            topics: mathematics::topics(Language::Hindi),
         },
     ]
 });
+
+pub fn english_math_topic(topic: &Topic) -> &Topic {
+    static ENGLISH: LazyLock<Vec<Topic>> = LazyLock::new(|| mathematics::topics(Language::English));
+    ENGLISH
+        .iter()
+        .find(|translation| translation.id == topic.id)
+        .unwrap_or(topic)
+}
 
 #[derive(Clone, Default, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]

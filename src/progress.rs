@@ -1,12 +1,20 @@
 use crate::{
     content::{self, Kind, Topic},
-    state::{self, Ink, Sample, State},
+    state::{self, HelperDraft, Ink, Sample, State},
 };
 
 pub enum Input {
     Answer(bool),
     Draft(Ink),
+    Helper(HelperDraft),
     Submit(Ink),
+    SubmitSolution { ink: Ink, correct: bool },
+}
+
+impl Input {
+    pub fn is_draft(&self) -> bool {
+        matches!(self, Self::Draft(_) | Self::Helper(_))
+    }
 }
 #[derive(Debug, PartialEq, Eq)]
 pub enum Outcome {
@@ -69,19 +77,44 @@ impl Step<'_> {
         date: &str,
     ) -> Option<Outcome> {
         let id = self.session_key();
-        let current = state.sessions.get(&id)?;
+        let current = state.sessions.get_mut(&id)?;
         if current.step != self.index {
             return None;
         }
-        let missed = current.missed || matches!(input, Input::Answer(true));
-        let submitted = matches!(input, Input::Submit(_));
-        if let Input::Draft(ink) | Input::Submit(ink) = input {
+        if let Input::Helper(helper) = input {
+            if matches!(
+                self.exercise(),
+                Some(Kind::Solve {
+                    helper: Some(_),
+                    ..
+                })
+            ) {
+                current.helper = Some(helper);
+                return Some(Outcome::Continue);
+            }
+            return None;
+        }
+        let generated = current.generated.is_some();
+        let missed = current.missed
+            || matches!(
+                input,
+                Input::Answer(true) | Input::SubmitSolution { correct: false, .. }
+            );
+        let writing_input = match input {
+            Input::Answer(_) | Input::Helper(_) => None,
+            Input::Draft(ink) => Some((ink, false, None)),
+            Input::Submit(ink) => Some((ink, true, None)),
+            Input::SubmitSolution { ink, correct } => Some((ink, true, Some(correct))),
+        };
+        if let Some((ink, submitted, correct)) = writing_input {
             let writing = self.exercise()?.writing()?;
             let sample_id = self.sample_key()?;
             if ink.iter().any(|cell| !cell.is_empty()) {
                 let sample = Sample {
                     label: format!("{} · {}", self.topic.title, writing.label),
                     model: writing.model.into(),
+                    solution: writing.solution.map(str::to_owned),
+                    correct,
                     lines: writing.lines,
                     paper: writing.paper,
                     ink,
@@ -110,6 +143,7 @@ impl Step<'_> {
         if more {
             let current = state.sessions.get_mut(&id)?;
             current.step += 1;
+            current.helper = None;
             current.missed = missed;
             let pause = !self.review
                 && current.step < self.topic.exercises.len()
@@ -124,10 +158,10 @@ impl Step<'_> {
             });
         }
         let key = self.key();
-        let awarded = !self.review && !state.finished.contains(&key);
+        let awarded = !generated && !self.review && !state.finished.contains(&key);
         if self.review {
             state.review(&key, today, missed);
-        } else {
+        } else if !generated {
             state.finish(&key, today);
         }
         state.sessions.remove(&id);

@@ -19,14 +19,43 @@ h2 { font-size: 1.4rem; }
 .cards small { display: block; font-size: .8rem; }
 .passage { background: #fff; padding: 1rem 1.25rem; border-radius: .7rem; font-size: 1.45rem; line-height: 1.65; }
 .reward { font-size: 1.45rem; color: #715216; }
+.math-helper { margin: .75rem 0; }
+.math-helper summary { cursor: pointer; }
+.tally-line {
+    display: grid;
+    grid-template-columns: max-content max-content;
+    align-items: start;
+    gap: 1rem;
+    overflow-x: auto;
+    margin: .75rem 0;
+}
+.tally-label, .tally-group .tally-reference { white-space: nowrap; }
+.tally-reference { font-family: monospace; font-size: 1.3rem; }
+.crossed-tallies { text-decoration: line-through; color: #77544b; }
+.number-check { margin: .7rem 0; }
+.number-check input { display: block; width: min(100%, 22rem); margin: .35rem 0; padding: .5rem; }
 .ink-scroll { overflow-x: auto; }
-.ink-grid {
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.notebook-stack { width: max-content; max-width: 100%; }
+.notebook-row {
+    display: grid;
+    grid-template-columns: repeat(3, var(--cell));
+    align-items: center;
+    height: var(--height);
+    text-align: center;
+    font-size: calc(.67 * var(--height));
+    font-variant-numeric: tabular-nums;
+}
+.notebook-stack .ink-grid, .notebook-stack .regroup-grid { margin-left: var(--cell); }
+.notebook-rule { width: calc(3 * var(--cell)); border-top: 2px solid currentColor; }
+.ink-grid, .regroup-grid {
     display: grid;
     width: max-content;
     grid-template-columns: repeat(var(--columns), var(--cell));
     background-color: #fff;
 }
-.ink-grid canvas {
+.regroup-grid { grid-template-columns: repeat(var(--notes), var(--cell)); }
+.ink-grid canvas, .regroup-grid canvas {
     display: block;
     width: var(--cell);
     height: var(--height);
@@ -35,7 +64,7 @@ h2 { font-size: 1.4rem; }
 }
 .ink-grid canvas.spacer { visibility: hidden; }
 
-.ink-square .ink-grid {
+.ink-square .ink-grid, .ink-square .regroup-grid {
     --rule: #b8c2c9;
     background:
         linear-gradient(var(--rule), var(--rule)) right / 1px 100% no-repeat,

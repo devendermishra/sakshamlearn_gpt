@@ -33,6 +33,7 @@ fn form(kind: &Kind) -> &'static str {
         Kind::Answer(..)
         | Kind::Talk { .. }
         | Kind::Compose(_, _, Some(_))
+        | Kind::Solve { .. }
         | Kind::Count { .. } => "copied",
     }
 }
@@ -89,7 +90,7 @@ pub fn Authoring(
                     button { class: "quiet", onclick: move |_| preview.set(None), "Back to draft" }
                     if let Some(exercise) = topic.exercises.get(index) {
                         Activity { key: "exercise-{index}", kind: exercise.kind.clone(), initial: Vec::new(), scale,
-                            on_input: move |input| if !matches!(input, Input::Draft(_)) { preview.set(Some(index + 1)); }
+                            on_input: move |input: Input| if !input.is_draft() { preview.set(Some(index + 1)); }
                         }
                     } else if let Some(question) = topic.recall.get(index - topic.exercises.len()) {
                         Activity { key: "recall-{index}", kind: Kind::Choice(question.clone()), initial: Vec::new(), scale, recall: true,
