@@ -19,6 +19,10 @@ pub struct State {
     pub catalog: CustomCatalog,
     pub math_language: Language,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub aba_language: Option<Language>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub aba_practice: BTreeMap<String, BTreeSet<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     session: Option<Session>,
     pub sessions: BTreeMap<String, Session>,
     pub finished: BTreeSet<String>,
@@ -91,11 +95,14 @@ fn one_line() -> usize {
     1
 }
 
-pub fn sample_date() -> String {
+pub fn india_date() -> time::Date {
     time::OffsetDateTime::now_utc()
         .to_offset(time::UtcOffset::from_hms(5, 30, 0).expect("valid India offset"))
         .date()
-        .to_string()
+}
+
+pub fn sample_date() -> String {
+    india_date().to_string()
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -155,6 +162,23 @@ pub fn day() -> u64 {
 }
 
 impl State {
+    pub fn mark_aba_practice(&mut self, date: time::Date, activity: &str, practiced: bool) {
+        let date = date.to_string();
+        if practiced {
+            self.aba_practice
+                .entry(date)
+                .or_default()
+                .insert(activity.to_owned());
+        } else if let std::collections::btree_map::Entry::Occupied(mut entry) =
+            self.aba_practice.entry(date)
+        {
+            entry.get_mut().remove(activity);
+            if entry.get().is_empty() {
+                entry.remove();
+            }
+        }
+    }
+
     pub fn start_generated(
         &mut self,
         grade: u8,

@@ -1,3 +1,4 @@
+mod aba;
 mod activity;
 mod authoring;
 mod content;
@@ -25,13 +26,14 @@ fn main() {
 #[derive(Clone, Copy, PartialEq)]
 enum Page {
     Subjects,
+    Aba,
     Subject,
     Group,
     Generated,
     Session,
     Break,
     Done(bool),
-    Parent,
+    Parent(bool),
 }
 
 #[component]
@@ -121,7 +123,12 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
         .find(|item| item.id == selected)
         .unwrap_or(&content::BUNDLED[0]);
     let math_selected = subject.id == "math";
-    let language = if math_selected && page() != Page::Subjects {
+    let aba_selected = page() == Page::Aba;
+    let aba_language = snapshot.aba_language.unwrap_or(Language::English);
+    let aba_name = aba_language.text("एबीए सीखें", "ABA Learning");
+    let language = if matches!(page(), Page::Aba | Page::Parent(true)) {
+        aba_language
+    } else if math_selected && page() != Page::Subjects {
         snapshot.math_language
     } else {
         Language::Hindi
@@ -219,7 +226,11 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                         }
                     }
                 }
+                button { lang: aba_language.code(), onclick: move |_| page.set(Page::Aba), "{aba_name}" }
             }
+        },
+        Page::Aba => rsx! {
+            aba::AbaLearning { language, name: aba_name, data, commit }
         },
         Page::Subject => rsx! {
             h1 { "{subject_name}" }
@@ -358,7 +369,7 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                 button { class: "primary", onclick: move |_| page.set(Page::Subject), "{back_to_subject}" }
             }
         },
-        Page::Parent => rsx! { parent::Parent { data, commit, publish, save_calibration } },
+        Page::Parent(_) => rsx! { parent::Parent { data, commit, publish, save_calibration } },
     };
     drop(snapshot);
 
@@ -367,22 +378,28 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
         style { {include_str!("style.css")} }
         div { class: "app", lang: language.code(),
             header {
-                if page() == Page::Subject {
+                if matches!(page(), Page::Subject | Page::Aba) {
                     button { class: "quiet", onclick: move |_| page.set(Page::Subjects), {language.text("‹ विषय", "‹ Subjects")} }
+                } else if page() == Page::Parent(true) {
+                    button { class: "quiet", onclick: move |_| page.set(Page::Aba), "‹ {aba_name}" }
                 } else if page() != Page::Subjects {
                     button { class: "quiet", onclick: move |_| page.set(Page::Subject), "⌂ {subject_name}" }
                 }
                 strong { {language.text("सक्षम", "Saksham")} }
                 span { class: "stars", "★ {stars}" }
-                if math_selected && !matches!(page(), Page::Subjects | Page::Parent) {
+                if aba_selected || (math_selected && !matches!(page(), Page::Subjects | Page::Parent(_))) {
                     button { lang: other_language.code(), onclick: move |_| {
                         let mut next = data.peek().clone();
-                        next.math_language = other_language;
+                        if aba_selected {
+                            next.aba_language = Some(other_language);
+                        } else {
+                            next.math_language = other_language;
+                        }
                         commit.call(next);
                     }, "{language_label}" }
                 }
-                if page() != Page::Parent {
-                    button { class: "quiet", onclick: move |_| page.set(Page::Parent), {language.text("बड़ों के लिए", "For parents")} }
+                if !matches!(page(), Page::Parent(_)) {
+                    button { class: "quiet", onclick: move |_| page.set(Page::Parent(page() == Page::Aba)), {language.text("बड़ों के लिए", "For parents")} }
                 }
             }
             main {

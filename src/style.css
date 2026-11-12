@@ -17,6 +17,42 @@ h2 { font-size: 1.4rem; }
 .cards, .actions { display: flex; flex-wrap: wrap; gap: .65rem; margin: .7rem 0; }
 .cards button { min-width: 8rem; font-size: 1.25rem; }
 .cards small { display: block; font-size: .8rem; }
+.aba-month {
+    width: 100%;
+    margin: 1rem 0 1.4rem;
+    table-layout: fixed;
+    border-collapse: collapse;
+    text-align: center;
+    background: #fff;
+}
+.aba-month caption { padding-bottom: .5rem; text-align: left; font-size: 1.4rem; font-weight: 700; }
+.aba-month th, .aba-month td { border: 1px solid #d9e2d8; padding: .45rem .1rem; }
+.aba-month td { height: 3.1rem; font-size: 1.15rem; }
+.aba-month small { display: block; font-size: clamp(.57rem, 2vw, .8rem); }
+.aba-month .aba-outside { color: #5a6c65; background: #f2f5ef; }
+.aba-month .aba-nearby { background: #e3f0e7; }
+.aba-month .aba-today { background: #255e50; color: #fff; font-weight: 700; }
+.aba-prompts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: .75rem; }
+.aba-panel { padding: .8rem 1rem; background: #fff; border: 1px solid #d9e2d8; border-radius: .7rem; }
+.aba-panel h3, .aba-plan h3 { margin: 0; font-size: 1.12rem; }
+.aba-panel details { margin: 0; border-top: 1px solid #d9e2d8; }
+.aba-panel h3 { margin-bottom: .45rem; }
+.aba-panel summary { min-height: 44px; padding: .7rem 0; }
+.aba-panel details p { padding-left: 1rem; font-weight: 700; }
+.aba-plan { margin-top: 1.25rem; }
+.aba-checklist { margin: .55rem 0; padding: 0; display: grid; gap: .5rem; list-style: none; }
+.aba-checklist label {
+    display: flex;
+    align-items: flex-start;
+    gap: .8rem;
+    padding: .7rem .9rem;
+    border: 1px solid #d9e2d8;
+    border-radius: .7rem;
+    background: #fff;
+    cursor: pointer;
+}
+.aba-checklist input { flex: 0 0 auto; width: 1.25rem; height: 1.25rem; margin: .15rem 0 0; accent-color: #255e50; }
+.aba-checklist small { display: block; margin-top: .2rem; font-size: .9rem; line-height: 1.45; }
 .passage { background: #fff; padding: 1rem 1.25rem; border-radius: .7rem; font-size: 1.45rem; line-height: 1.65; }
 .reward { font-size: 1.45rem; color: #715216; }
 .math-helper { margin: .75rem 0; }
