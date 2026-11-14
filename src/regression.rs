@@ -447,6 +447,52 @@ fn bundled_catalog_and_hindi_recall_are_valid() {
 }
 
 #[test]
+fn everyday_words_cover_both_languages_and_classes() {
+    for (subject, paper) in [("en", Paper::English), ("hi", Paper::Hindi)] {
+        for (grade, count) in [(1, 6), (2, 5)] {
+            let topics: Vec<_> = bundled(subject)
+                .topics
+                .iter()
+                .filter(|topic| topic.grade == grade && topic.group.id == "everyday-words")
+                .collect();
+            assert_eq!(topics.len(), count);
+            let mut models = BTreeSet::new();
+            for topic in topics {
+                assert!(topic.group.separate_page);
+                assert_eq!(topic.break_every, Some(2));
+                assert_eq!(topic.recall.len(), 4);
+                let Kind::Read(passage, _) = &topic.exercises[0].kind else {
+                    panic!("Vocabulary practice should start with reading");
+                };
+                for exercise in &topic.exercises[1..5] {
+                    let Kind::Trace {
+                        model,
+                        paper: actual_paper,
+                        ..
+                    } = &exercise.kind
+                    else {
+                        panic!("Vocabulary words should have tracing models");
+                    };
+                    assert_eq!(*actual_paper, paper);
+                    assert!(passage
+                        .lines()
+                        .next()
+                        .unwrap()
+                        .split(" · ")
+                        .any(|word| word == model));
+                    assert!(models.insert(model));
+                }
+                assert!(matches!(
+                    topic.exercises[5].kind,
+                    Kind::Compose(_, 2, Some(_))
+                ));
+            }
+            assert_eq!(models.len(), count * 4);
+        }
+    }
+}
+
+#[test]
 fn english_has_writing_plans_and_distinct_recall_for_both_classes() {
     let topics = &bundled("en").topics;
     for (grade, reading_count) in [(1, 11), (2, 14)] {

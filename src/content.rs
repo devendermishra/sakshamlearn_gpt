@@ -1,3 +1,4 @@
+mod common_words;
 mod english;
 mod hindi;
 mod mathematics;
@@ -359,12 +360,18 @@ pub static BUNDLED: LazyLock<Vec<Subject>> = LazyLock::new(|| {
         Subject {
             id: "hi".into(),
             name: "हिंदी".into(),
-            topics: hindi::topics(),
+            topics: common_words::hindi()
+                .into_iter()
+                .chain(hindi::topics())
+                .collect(),
         },
         Subject {
             id: "en".into(),
             name: "English".into(),
-            topics: english::topics(),
+            topics: english::topics()
+                .into_iter()
+                .chain(common_words::english())
+                .collect(),
         },
         Subject {
             id: "math".into(),

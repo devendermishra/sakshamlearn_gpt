@@ -53,7 +53,7 @@ h2 { font-size: 1.4rem; }
 }
 .aba-checklist input { flex: 0 0 auto; width: 1.25rem; height: 1.25rem; margin: .15rem 0 0; accent-color: #255e50; }
 .aba-checklist small { display: block; margin-top: .2rem; font-size: .9rem; line-height: 1.45; }
-.passage { background: #fff; padding: 1rem 1.25rem; border-radius: .7rem; font-size: 1.45rem; line-height: 1.65; }
+.passage { background: #fff; padding: 1rem 1.25rem; border-radius: .7rem; font-size: 1.45rem; line-height: 1.65; white-space: pre-line; }
 .lesson-picture { display: block; width: auto; max-width: 100%; max-height: min(45vh, 24rem); object-fit: contain; margin: 0 0 .8rem; border-radius: .55rem; }
 .reward { font-size: 1.45rem; color: #715216; }
 .math-helper { margin: .75rem 0; }

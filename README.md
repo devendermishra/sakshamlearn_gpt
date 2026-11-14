@@ -14,6 +14,10 @@ Use **Sound out words** for short-a word families such as `-an` and `-ap`. Use *
 
 In Class 1, **Write small letters** covers lowercase a–z in pairs. In both classes, **Write practice words** gives the `-an` and `-ap` families their own tracing and handwriting cards.
 
+## Everyday vocabulary
+
+Open **Everyday words** in English or **रोज़ के शब्द** in Hindi for either class. Class 1 covers home and family, school supplies, food, everyday actions, colours and sizes, and polite words. Class 2 covers questions, position, time and sequence, pronouns, and connecting ideas. Each card introduces four words in context and includes tracing, adult-led dictation, and recall. The sets use the themes in the *Mridang* and *Sarangi* textbooks and the vocabulary goals in NCERT’s [National Curriculum Framework for Foundational Stage, competency C-9.7](https://www.ncert.nic.in/pdf/NCF_for_Foundational_Stage_20_October_2022.pdf).
+
 ## Build and install
 
 Install Rust, the Dioxus 0.7.10 CLI, and Android Studio with a JDK, Android SDK, build tools, platform tools, and a side-by-side NDK. Configure `ANDROID_HOME` and `ANDROID_NDK_HOME` for the installed versions, then run:
