@@ -54,6 +54,7 @@ h2 { font-size: 1.4rem; }
 .aba-checklist input { flex: 0 0 auto; width: 1.25rem; height: 1.25rem; margin: .15rem 0 0; accent-color: #255e50; }
 .aba-checklist small { display: block; margin-top: .2rem; font-size: .9rem; line-height: 1.45; }
 .passage { background: #fff; padding: 1rem 1.25rem; border-radius: .7rem; font-size: 1.45rem; line-height: 1.65; }
+.lesson-picture { display: block; width: auto; max-width: 100%; max-height: min(45vh, 24rem); object-fit: contain; margin: 0 0 .8rem; border-radius: .55rem; }
 .reward { font-size: 1.45rem; color: #715216; }
 .math-helper { margin: .75rem 0; }
 .math-helper summary { cursor: pointer; }
@@ -133,6 +134,17 @@ h2 { font-size: 1.4rem; }
     inset: calc(var(--height) + var(--band)) 0 var(--band) var(--cell);
     background: repeating-linear-gradient(to right, #d6d6d6 0 1px, transparent 1px var(--cell));
     pointer-events: none;
+}
+.ink-english .ink-grid {
+    background:
+        linear-gradient(to bottom,
+            transparent 12.5%, #bc8181 12.5% calc(12.5% + 1px),
+            transparent calc(12.5% + 1px) 37.5%, #9ab0c3 37.5% calc(37.5% + 1px),
+            transparent calc(37.5% + 1px) 62.5%, #6b89a3 62.5% calc(62.5% + 1px),
+            transparent calc(62.5% + 1px) 87.5%, #bc8181 87.5% calc(87.5% + 1px),
+            transparent calc(87.5% + 1px)
+        ) top left / 100% var(--height) repeat-y,
+        #fff;
 }
 .ink-status { min-height: 1.5em; }
 .parent label { display: flex; align-items: center; gap: .7rem; margin: .75rem 0; }

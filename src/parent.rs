@@ -82,7 +82,8 @@ pub fn Parent(
                 if let Some(id) = selected() {
                     if let Some(sample) = samples.get(&id) {
                         InkPad { key: "{id}", id: "review-ink", model: sample.model.clone(),
-                            initial: sample.ink.clone(), scale, lines: sample.lines, paper: sample.paper, readonly: true }
+                            initial: sample.ink.clone(), scale, lines: sample.lines, paper: sample.paper, readonly: true,
+                            language: if sample.paper == crate::content::Paper::English { crate::language::Language::English } else { crate::language::Language::Hindi } }
                         if let Some(solution) = &sample.solution {
                             p { strong { "Solution " } "{solution}" }
                         }
@@ -202,6 +203,9 @@ fn Calibration(
                 p { "Mathematics: 110 mm across ten squares. Each square is 11 mm wide and 11 mm tall." }
                 InkPad { id: "check-math", model: "1", initial: Vec::new(), scale: corrected,
                     paper: crate::content::Paper::Digit, readonly: true }
+                p { "English: 4 mm between adjacent writing guides, including the two blue lines." }
+                InkPad { id: "check-english", model: "", initial: Vec::new(), scale: corrected,
+                    paper: crate::content::Paper::English, readonly: true }
                 p { "Repeat the ruler check if you change your device’s display scaling." }
             }
         }

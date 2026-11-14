@@ -1,8 +1,9 @@
-const {id, model, initial, readonly, square, digitWidth = 0, blankColumns = 1, noteColumns = 0, lines, allowMouse, english} = config;
+const {id, model, initial, readonly, square, englishPaper, digitWidth = 0, blankColumns = 1, noteColumns = 0, lines, allowMouse, english} = config;
 const container = document.getElementById(id);
 if (!container) return;
 
-const columns = model ? (digitWidth ? 2 * digitWidth : 6) : blankColumns;
+const traceColumns = englishPaper ? 3 : 6;
+const columns = model ? (digitWidth ? 2 * digitWidth : traceColumns) : blankColumns;
 const count = noteColumns + columns * (model ? 2 : lines);
 const grid = container.querySelector(".ink-grid");
 const notes = container.querySelector(".regroup-grid");
@@ -17,7 +18,7 @@ const text = (hindi, translation) => english ? translation : hindi;
 
 function paper(index) {
     const canvas = document.createElement("canvas");
-    canvas.width = square ? 216 : model ? 240 : 720;
+    canvas.width = englishPaper ? (model ? 540 : 1620) : square ? 216 : model ? 240 : 720;
     canvas.height = 216;
     canvas.dataset.cell = index;
     if (index < noteColumns) {
@@ -39,20 +40,48 @@ function glyph(ctx, text, kind) {
     ctx.save();
     ctx.textBaseline = "alphabetic";
     ctx.textAlign = "center";
+    ctx.fillStyle = kind === "model" ? "#223c37" : "#444";
     if (square) {
         ctx.font = "144px system-ui, sans-serif";
-        ctx.fillStyle = kind === "model" ? "#223c37" : "#444";
         ctx.textBaseline = "middle";
         ctx.fillText(text, 108, 112, 180);
+        ctx.restore();
+        return;
+    }
+    if (englishPaper) {
+        drawEnglishModel(ctx, text);
         ctx.restore();
         return;
     }
     ctx.font = '91px "Noto Sans Devanagari", Mangal, sans-serif';
     const ascent = ctx.measureText("क").actualBoundingBoxAscent;
     if (ascent > 0) ctx.font = (91 * 71 / ascent) + 'px "Noto Sans Devanagari", Mangal, sans-serif';
-    ctx.fillStyle = kind === "model" ? "#223c37" : "#444";
     ctx.fillText(text, ctx.canvas.width / 2, 143, ctx.canvas.width - 28);
     ctx.restore();
+}
+
+function drawEnglishModel(ctx, text) {
+    const {width, height} = ctx.canvas;
+    const source = document.createElement("canvas");
+    source.width = width;
+    source.height = height;
+    const modelContext = source.getContext("2d");
+    modelContext.font = "144px Arial, sans-serif";
+    modelContext.textAlign = "center";
+    modelContext.textBaseline = "alphabetic";
+    modelContext.fillStyle = ctx.fillStyle;
+    const baseline = 145;
+    const cap = Math.round(modelContext.measureText("H").actualBoundingBoxAscent);
+    const xHeight = Math.round(modelContext.measureText("x").actualBoundingBoxAscent);
+    modelContext.fillText(text, width / 2, baseline, width - 28);
+
+    // Align the cap line, x-height and baseline with the printed workbook guides.
+    const input = [0, baseline - cap, baseline - xHeight, baseline, height];
+    const guides = [0, height / 8, 3 * height / 8, 5 * height / 8, height];
+    for (let index = 0; index + 1 < guides.length; index++) {
+        ctx.drawImage(source, 0, input[index], width, input[index + 1] - input[index],
+            0, guides[index], width, guides[index + 1] - guides[index]);
+    }
 }
 
 function line(ctx, points, color, width) {
@@ -206,6 +235,10 @@ if (!readonly) {
         }
         if (!ink.some(cell => cell.length)) {
             message.textContent = text("पहले पेन से लिखो।", "Write with the pen first.");
+            return;
+        }
+        if (englishPaper && !model && lines > 1 && ink.some(cell => !cell.length)) {
+            message.textContent = text("हर पंक्ति पर लिखो।", "Write on each line before finishing.");
             return;
         }
         if (digitWidth && (!hasCompleteCopy(0) || !hasCompleteCopy(columns))) {

@@ -2,7 +2,9 @@ use crate::writing::PaperScale;
 use crate::{
     activity::Activity,
     content::{self, CustomCatalog, Exercise, Group, Kind, Paper, Question, Topic},
+    language::Language,
     progress::Input,
+    state::Ink,
 };
 use dioxus::prelude::*;
 
@@ -31,6 +33,8 @@ fn form(kind: &Kind) -> &'static str {
         Kind::Trace { .. } => "trace",
         Kind::Compose(_, _, None) => "write",
         Kind::Answer(..)
+        | Kind::Picture(..)
+        | Kind::Revise(..)
         | Kind::Talk { .. }
         | Kind::Compose(_, _, Some(_))
         | Kind::Solve { .. }
@@ -38,14 +42,63 @@ fn form(kind: &Kind) -> &'static str {
     }
 }
 
-fn empty_form(form: &str) -> Kind {
+fn retarget_trace_paper(topic: &mut Topic, previous: Paper, destination: Paper) {
+    for exercise in &mut topic.exercises {
+        if let Kind::Trace { paper, .. } = &mut exercise.kind {
+            if *paper == previous {
+                *paper = destination;
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn trace_follows_new_subject_and_keeps_explicit_math_paper() {
+        let mut topic = blank_topic();
+        for paper in [Paper::Hindi, Paper::Digit] {
+            topic.exercises.push(Exercise {
+                id: content::new_id(),
+                kind: empty_form("trace", paper),
+            });
+        }
+        retarget_trace_paper(&mut topic, Paper::Hindi, Paper::English);
+        assert!(matches!(
+            topic.exercises[0].kind,
+            Kind::Trace {
+                paper: Paper::English,
+                ..
+            }
+        ));
+        assert!(matches!(
+            topic.exercises[1].kind,
+            Kind::Trace {
+                paper: Paper::Digit,
+                ..
+            }
+        ));
+        retarget_trace_paper(&mut topic, Paper::English, Paper::Hindi);
+        assert!(matches!(
+            topic.exercises[0].kind,
+            Kind::Trace {
+                paper: Paper::Hindi,
+                ..
+            }
+        ));
+    }
+}
+
+fn empty_form(form: &str, paper: Paper) -> Kind {
     match form {
         "read" => Kind::Read(String::new(), blank_question()),
         "listen" => Kind::Listen(String::new(), blank_question()),
         "trace" => Kind::Trace {
             model: String::new(),
             guidance: String::new(),
-            paper: Paper::Hindi,
+            paper,
         },
         "write" => Kind::Compose(String::new(), 1, None),
         _ => Kind::Choice(blank_question()),
@@ -63,9 +116,16 @@ pub fn Authoring(
     let mut name = use_signal(String::new);
     let mut draft = use_signal(|| None::<Topic>);
     let mut preview = use_signal(|| None::<usize>);
+    let mut previous_writing = use_signal(|| None::<(Ink, usize)>);
     let mut error = use_signal(String::new);
     let mut notice = use_signal(String::new);
     let subject_id = subject();
+    let paper = Paper::for_subject(&subject_id);
+    let language = if paper == Paper::English {
+        Language::English
+    } else {
+        Language::Hindi
+    };
     let current = catalog.subjects().find(|item| item.id == subject_id);
     let custom_subject = catalog.subjects.iter().any(|item| item.id == subject_id);
     let authored = catalog
@@ -89,11 +149,24 @@ pub fn Authoring(
                     h2 { "Learner preview" }
                     button { class: "quiet", onclick: move |_| preview.set(None), "Back to draft" }
                     if let Some(exercise) = topic.exercises.get(index) {
-                        Activity { key: "exercise-{index}", kind: exercise.kind.clone(), initial: Vec::new(), scale,
-                            on_input: move |input: Input| if !input.is_draft() { preview.set(Some(index + 1)); }
+                        {
+                            let output_lines = exercise.kind.writing(paper).map(|writing| writing.lines);
+                            rsx! {
+                                Activity { key: "exercise-{index}", kind: exercise.kind.clone(), initial: Vec::new(), scale,
+                                    language, ruled_paper: paper, revision_source: previous_writing(),
+                                    on_input: move |input: Input| if !input.is_draft() {
+                                        previous_writing.set(match input {
+                                            Input::Submit(ink) => output_lines.map(|lines| (ink, lines)),
+                                            _ => None,
+                                        });
+                                        preview.set(Some(index + 1));
+                                    }
+                                }
+                            }
                         }
                     } else if let Some(question) = topic.recall.get(index - topic.exercises.len()) {
                         Activity { key: "recall-{index}", kind: Kind::Choice(question.clone()), initial: Vec::new(), scale, recall: true,
+                            language,
                             on_input: move |_| preview.set(Some(index + 1)) }
                     } else {
                         p { "Preview complete." }
@@ -102,7 +175,13 @@ pub fn Authoring(
                     h2 { "Activity draft" }
                     if topic.id.is_empty() {
                         label { "Publish to subject"
-                            select { value: "{subject_id}", onchange: move |event| subject.set(event.value()),
+                            select { value: "{subject_id}", onchange: move |event| {
+                                let destination = event.value();
+                                if let Some(topic) = draft.write().as_mut() {
+                                    retarget_trace_paper(topic, paper, Paper::for_subject(&destination));
+                                }
+                                subject.set(destination);
+                            },
                                 for item in catalog.subjects() {
                                     option { key: "{item.id}", value: "{item.id}", "{item.name}" }
                                 }
@@ -126,7 +205,7 @@ pub fn Authoring(
                     }
                     h3 { "Exercises" }
                     for (index, exercise) in topic.exercises.iter().enumerate() {
-                        ExerciseFields { key: "{exercise.id}", kind: exercise.kind.clone(), index, count: topic.exercises.len(),
+                        ExerciseFields { key: "{exercise.id}", kind: exercise.kind.clone(), index, count: topic.exercises.len(), default_paper: paper,
                             on_change: move |kind| {
                                 if let Some(topic) = draft.write().as_mut() { topic.exercises[index].kind = kind; }
                             },
@@ -140,7 +219,7 @@ pub fn Authoring(
                     }
                     button { onclick: move |_| {
                         if let Some(topic) = draft.write().as_mut() {
-                            topic.exercises.push(Exercise { id: content::new_id(), kind: empty_form("choice") });
+                            topic.exercises.push(Exercise { id: content::new_id(), kind: empty_form("choice", paper) });
                         }
                     }, "Add exercise" }
                     h3 { "Recall questions" }
@@ -162,7 +241,7 @@ pub fn Authoring(
                         button { onclick: move |_| {
                             if let Some(topic) = draft() {
                                 match topic.validate() {
-                                    Ok(()) => { error.set(String::new()); preview.set(Some(0)); }
+                                    Ok(()) => { error.set(String::new()); previous_writing.set(None); preview.set(Some(0)); }
                                     Err(message) => error.set(message),
                                 }
                             }
@@ -262,6 +341,7 @@ pub fn Authoring(
 
 #[component]
 fn ExerciseFields(
+    default_paper: Paper,
     kind: Kind,
     index: usize,
     count: usize,
@@ -330,7 +410,7 @@ fn ExerciseFields(
             legend { "Exercise {index + 1}" }
             if form != "copied" {
                 label { "Exercise type"
-                    select { value: "{form}", onchange: move |event| on_change.call(empty_form(&event.value())),
+                    select { value: "{form}", onchange: move |event| on_change.call(empty_form(&event.value(), default_paper)),
                         option { value: "choice", "Multiple choice" }
                         option { value: "read", "Read and answer" }
                         option { value: "listen", "Listen and answer" }

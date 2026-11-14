@@ -11,6 +11,8 @@ const CSS_PIXELS_PER_MM: f64 = 96.0 / 25.4;
 const DIGIT_CELL_MM: f64 = 11.0;
 const WORK_GRID_COLUMNS: usize = 10;
 const HINDI_BAND_MM: f64 = 8.0;
+// Four rules at 4 mm intervals, with 4 mm between writing rows in the workbook.
+const ENGLISH_ROW_MM: f64 = 16.0;
 
 #[derive(Clone, Copy, PartialEq)]
 pub struct PaperScale {
@@ -74,13 +76,20 @@ pub fn InkPad(
         _ => 0,
     };
     let tracing = !model.is_empty();
+    let english_paper = paper == Paper::English;
     let notes = paper.regrouping_cells();
     let blank_columns = match paper {
         Paper::Digit => work_columns.unwrap_or(WORK_GRID_COLUMNS),
         Paper::Notebook | Paper::NotebookCarry | Paper::NotebookBorrow => 2,
-        Paper::Hindi => 1,
+        Paper::Hindi | Paper::English => 1,
     };
-    let config = serde_json::json!({ "id": id, "model": model, "initial": initial, "readonly": readonly, "square": paper != Paper::Hindi, "digitWidth": digit_width, "blankColumns": blank_columns, "noteColumns": notes, "lines": lines, "allowMouse": !cfg!(target_os = "android"), "english": language == Language::English });
+    let config = serde_json::json!({
+        "id": id, "model": model, "initial": initial, "readonly": readonly,
+        "square": !matches!(paper, Paper::Hindi | Paper::English),
+        "englishPaper": english_paper, "digitWidth": digit_width,
+        "blankColumns": blank_columns, "noteColumns": notes, "lines": lines,
+        "allowMouse": !cfg!(target_os = "android"), "english": language == Language::English,
+    });
     use_effect(move || {
         let script = format!(
             "const config = {config};\n{}\n{}\nwhile (container && !readonly && !submitted && container.isConnected) await new Promise(resolve => setTimeout(resolve, 250));",
@@ -107,17 +116,21 @@ pub fn InkPad(
     let (cell, height) = match paper {
         Paper::Hindi if model.is_empty() => (96.0, 3.0 * HINDI_BAND_MM),
         Paper::Hindi => (30.0, 3.0 * HINDI_BAND_MM),
+        Paper::English if tracing => (40.0, ENGLISH_ROW_MM),
+        Paper::English => (120.0, ENGLISH_ROW_MM),
         _ => (DIGIT_CELL_MM, DIGIT_CELL_MM),
     };
     let columns = match (paper, tracing) {
         (Paper::Digit, true) if digit_width > 0 => 2 * digit_width,
         (Paper::Digit, true) => 10,
         (Paper::Hindi, true) => 6,
+        (Paper::English, true) => 3,
         _ => blank_columns,
     };
     let class = match (paper, tracing) {
         (Paper::Hindi, true) => "ink ink-hindi ink-hindi-trace",
         (Paper::Hindi, false) => "ink ink-hindi",
+        (Paper::English, _) => "ink ink-english",
         _ => "ink ink-square",
     };
     let paper_style = format!(
@@ -135,7 +148,7 @@ pub fn InkPad(
     let can_finish = on_done.is_some();
     rsx! {
         section { id: "{id}", class: "{class}", style: "{paper_style}",
-            if tracing && paper == Paper::Hindi {
+            if tracing && matches!(paper, Paper::Hindi | Paper::English) {
                 p { class: "instructions", {language.text("पहली पंक्ति में बिंदियों पर लिखो। दूसरी पंक्ति में खुद लिखो।", "Trace the dots on the first row. Write on your own on the second row.")} }
             } else if digit_width > 0 {
                 p { class: "instructions", "{model_label} {model}{full_stop} {two_rows}" }

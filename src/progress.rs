@@ -1,5 +1,5 @@
 use crate::{
-    content::{self, Kind, Topic},
+    content::{self, Kind, Paper, Topic},
     state::{self, HelperDraft, Ink, Sample, State},
 };
 
@@ -61,6 +61,17 @@ impl Step<'_> {
             .map(|sample| sample.ink.clone())
             .unwrap_or_default()
     }
+    pub fn revision_source<'a>(&self, state: &'a State) -> Option<(&'a Ink, usize)> {
+        if !matches!(self.exercise(), Some(Kind::Revise(..))) {
+            return None;
+        }
+        let previous = self.topic.exercises.get(self.index.checked_sub(1)?)?;
+        let sample = state
+            .history
+            .get(&format!("{}/{}", self.key(), previous.id))?
+            .last()?;
+        Some((&sample.ink, sample.lines))
+    }
     pub fn recall(&self, state: &State) -> &[content::Question] {
         let interval = if self.review {
             state.reviews.get(&self.key()).map(|review| review.interval)
@@ -107,8 +118,15 @@ impl Step<'_> {
             Input::SubmitSolution { ink, correct } => Some((ink, true, Some(correct))),
         };
         if let Some((ink, submitted, correct)) = writing_input {
-            let writing = self.exercise()?.writing()?;
+            let writing = self.exercise()?.writing(Paper::for_subject(self.subject))?;
             let sample_id = self.sample_key()?;
+            if submitted
+                && writing.paper == Paper::English
+                && writing.lines > 1
+                && (ink.len() != writing.lines || ink.iter().any(Vec::is_empty))
+            {
+                return None;
+            }
             if ink.iter().any(|cell| !cell.is_empty()) {
                 let sample = Sample {
                     label: format!("{} · {}", self.topic.title, writing.label),

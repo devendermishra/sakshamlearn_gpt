@@ -182,6 +182,7 @@ fn TalkActivity(
     on_ink: EventHandler<Ink>,
     on_written: EventHandler<Ink>,
     language: Language,
+    paper: Paper,
     on_done: EventHandler<()>,
 ) -> Element {
     let mut picked = use_signal(|| None::<String>);
@@ -191,7 +192,7 @@ fn TalkActivity(
         h2 { "{prompt}" }
         details { summary { {language.text("बड़ों के लिए बातचीत का संकेत", "Conversation cue for adults")} } p { "{adult}" } }
         if write() {
-            InkPad { key: "{language.code()}", language, id: "talk-ink", model: "", initial, scale, on_ink, on_done: on_written }
+            InkPad { key: "{language.code()}", language, id: "talk-ink", model: "", initial, scale, paper, on_ink, on_done: on_written }
         } else {
             div { class: "cards",
                 for starter in starters {
@@ -217,6 +218,7 @@ fn WrittenAnswer(
     on_ink: EventHandler<Ink>,
     on_written: EventHandler<Ink>,
     language: Language,
+    paper: Paper,
     on_done: EventHandler<bool>,
 ) -> Element {
     let mut tap = use_signal(|| false);
@@ -227,7 +229,7 @@ fn WrittenAnswer(
             p { class: "passage", "{passage}" }
             h2 { "{question.prompt}" }
             {rsx! {
-                InkPad { key: "{language.code()}", language, id: "answer-ink", model: "", initial, scale, on_ink,
+                InkPad { key: "{language.code()}", language, id: "answer-ink", model: "", initial, scale, paper, on_ink,
                     on_done: on_written }
             }}
             button { class: "quiet", onclick: move |_| tap.set(true), {language.text("जवाब चुनो", "Choose an answer")} }
@@ -243,6 +245,8 @@ pub fn Activity(
     #[props(default)] recall: bool,
     #[props(default)] helper_draft: HelperDraft,
     #[props(default)] language: Language,
+    #[props(default)] ruled_paper: Paper,
+    #[props(default)] revision_source: Option<(Ink, usize)>,
     on_input: EventHandler<Input>,
 ) -> Element {
     let on_done = move |missed| on_input.call(Input::Answer(missed));
@@ -251,6 +255,13 @@ pub fn Activity(
     match kind {
         Kind::Choice(question) => {
             rsx! { Choice { passage: "", question, recall, language, on_done } }
+        }
+        Kind::Picture(picture, question) => {
+            let (src, alt) = picture.illustration();
+            rsx! {
+                img { class: "lesson-picture", src, alt }
+                Choice { passage: "", question, language, on_done }
+            }
         }
         Kind::Read(script, question) => {
             rsx! { PassageActivity { script, question, language, on_done } }
@@ -269,7 +280,7 @@ pub fn Activity(
             Choice { passage: "", question, language, on_done }
         },
         Kind::Answer(passage, question) => rsx! {
-            WrittenAnswer { passage, question, initial, scale, language, on_ink, on_written, on_done }
+            WrittenAnswer { passage, question, initial, scale, language, paper: ruled_paper, on_ink, on_written, on_done }
         },
         Kind::Talk {
             picture,
@@ -277,7 +288,7 @@ pub fn Activity(
             starters,
             adult,
         } => rsx! {
-            TalkActivity { picture, prompt, starters, adult, initial, scale, language, on_ink, on_written,
+            TalkActivity { picture, prompt, starters, adult, initial, scale, language, paper: ruled_paper, on_ink, on_written,
                 on_done: move |_| on_done(false) }
         },
         Kind::Trace {
@@ -297,8 +308,20 @@ pub fn Activity(
                 details { summary { {language.text("बड़े बोलकर सुनाएँ", "An adult can read this aloud")} } p { "{words}" } }
             }
             {rsx! {
-                InkPad { key: "{language.code()}", language, id: "compose-ink", model: "", initial, scale, lines, on_ink, on_done: on_written }
+                InkPad { key: "{language.code()}", language, id: "compose-ink", model: "", initial, scale, paper: ruled_paper, lines, on_ink, on_done: on_written }
             }}
+        },
+        Kind::Revise(prompt, lines) => rsx! {
+            h2 { "{prompt}" }
+            if let Some((ink, previous_lines)) = revision_source {
+                p { {language.text("तुम्हारी पिछली लिखाई", "Your previous writing")} }
+                InkPad { id: "previous-writing", model: "", initial: ink, scale,
+                    lines: previous_lines, language, paper: ruled_paper, readonly: true }
+            } else {
+                p { {language.text("याद करके वाक्य लिखो।", "Write the sentence again from memory.")} }
+            }
+            InkPad { id: "revision-ink", model: "", initial, scale, lines, language,
+                paper: ruled_paper, on_ink, on_done: on_written }
         },
         Kind::Solve {
             prompt,

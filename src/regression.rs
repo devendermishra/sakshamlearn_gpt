@@ -289,7 +289,7 @@ fn notebook_math_uses_a_single_answer_row_and_keeps_the_handwritten_result() {
             assert_eq!(topic.grade, grade);
             assert_eq!(topic.exercises.len(), 3);
             assert!(topic.exercises.iter().all(|exercise| {
-                let writing = exercise.kind.writing().unwrap();
+                let writing = exercise.kind.writing(Paper::Hindi).unwrap();
                 writing.paper == Paper::Notebook && writing.lines == 1 && writing.model.is_empty()
             }));
         }
@@ -336,7 +336,7 @@ fn notebook_regrouping_has_separate_space_for_carry_and_borrow_notes() {
         assert_eq!(topic.grade, 2);
         assert_eq!(topic.exercises.len(), answers.len());
         for (exercise, expected) in topic.exercises.iter().zip(answers) {
-            let writing = exercise.kind.writing().unwrap();
+            let writing = exercise.kind.writing(Paper::Hindi).unwrap();
             assert_eq!(writing.paper, paper);
             assert_eq!(writing.paper.regrouping_cells(), cells);
             assert_eq!(writing.lines, 1);
@@ -444,6 +444,151 @@ fn bundled_catalog_and_hindi_recall_are_valid() {
             .collect();
         assert_eq!(covered.len(), 12);
     }
+}
+
+#[test]
+fn english_has_writing_plans_and_distinct_recall_for_both_classes() {
+    let topics = &bundled("en").topics;
+    for (grade, reading_count) in [(1, 11), (2, 14)] {
+        let class: Vec<_> = topics.iter().filter(|topic| topic.grade == grade).collect();
+        for (group, count) in [
+            ("reading", reading_count),
+            ("word-sounds", if grade == 1 { 2 } else { 1 }),
+            ("common-words", 2),
+            ("word-writing", if grade == 1 { 2 } else { 1 }),
+            ("lowercase", if grade == 1 { 13 } else { 0 }),
+            ("conversation", 2),
+            ("writing-plan", 5),
+        ] {
+            assert_eq!(
+                class.iter().filter(|topic| topic.group.id == group).count(),
+                count
+            );
+        }
+        for topic in class {
+            assert_eq!(topic.break_every, Some(2));
+            let prompts: BTreeSet<_> = [None, Some(0), Some(1), Some(2)]
+                .into_iter()
+                .flat_map(|interval| content::review_questions(topic, interval))
+                .map(|question| &question.prompt)
+                .collect();
+            assert_eq!(prompts.len(), 4, "{}", topic.id);
+        }
+    }
+    let alphabet: BTreeSet<_> = topics
+        .iter()
+        .filter(|topic| topic.group.id == "alphabet")
+        .flat_map(|topic| &topic.exercises)
+        .map(|exercise| match &exercise.kind {
+            Kind::Trace {
+                model,
+                paper: Paper::English,
+                ..
+            } => {
+                assert_eq!(model.len(), 1);
+                model.chars().next().unwrap()
+            }
+            _ => panic!("The alphabet exercise needs an English trace model"),
+        })
+        .collect();
+    assert_eq!(alphabet, ('A'..='Z').chain('a'..='z').collect());
+    let lowercase: Vec<_> = topics
+        .iter()
+        .filter(|topic| topic.group.id == "lowercase")
+        .flat_map(|topic| &topic.exercises)
+        .filter_map(|exercise| match &exercise.kind {
+            Kind::Trace {
+                model,
+                paper: Paper::English,
+                ..
+            } => model.chars().next(),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(lowercase, ('a'..='z').collect::<Vec<_>>());
+
+    let class_two_lessons: Vec<_> = topics
+        .iter()
+        .filter(|topic| {
+            topic.grade == 2 && topic.group.id == "reading" && topic.id != "en2-common-words"
+        })
+        .collect();
+    for interval in 0..3 {
+        let positions: BTreeSet<_> = class_two_lessons
+            .iter()
+            .map(|topic| content::review_questions(topic, Some(interval))[0].answer)
+            .collect();
+        assert_eq!(positions, BTreeSet::from([0, 1]));
+    }
+
+    for id in [
+        "en1-picture-time",
+        "en1-food-pictures",
+        "en2-picture-reading",
+    ] {
+        let topic = topics.iter().find(|topic| topic.id == id).unwrap();
+        let Kind::Picture(picture, _) = topic.exercises[0].kind else {
+            panic!("{id} must open with picture reading");
+        };
+        let (src, alt) = picture.illustration();
+        assert!(src.starts_with("data:image/jpeg;base64,/9j/"));
+        assert!(!alt.is_empty());
+    }
+}
+
+#[test]
+fn english_writing_resumes_and_is_saved_on_four_line_paper() {
+    let topic = bundled("en")
+        .topics
+        .iter()
+        .find(|topic| topic.id == "en2-write-5")
+        .unwrap();
+    let step = Step {
+        subject: "en",
+        topic,
+        review: false,
+        index: 0,
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("progress.json");
+    let mut state = state::load(&path).unwrap();
+    state.sessions.insert(
+        step.session_key(),
+        Session::new("en".into(), topic.id.clone(), false),
+    );
+    let ink = vec![vec![vec![[0.2, 0.3]]], vec![vec![[0.3, 0.4]]]];
+    assert_eq!(
+        step.apply(&mut state, Input::Draft(ink.clone()), 100, "2026-11-12"),
+        Some(Outcome::Continue)
+    );
+    state::save(&path, &state).unwrap();
+    let mut state = state::load(&path).unwrap();
+    assert_eq!(step.ink(&state), ink);
+    assert_eq!(
+        step.apply(
+            &mut state,
+            Input::Submit(vec![ink[0].clone(), Vec::new()]),
+            100,
+            "2026-11-12"
+        ),
+        None
+    );
+    assert_eq!(state.sessions[&step.session_key()].step, 0);
+    assert_eq!(step.ink(&state), ink);
+    assert_eq!(
+        step.apply(&mut state, Input::Submit(ink.clone()), 100, "2026-11-12"),
+        Some(Outcome::Continue)
+    );
+    state::save(&path, &state).unwrap();
+    let state = state::load(&path).unwrap();
+    let sample = &state.history["en/en2-write-5/model"][0];
+    assert_eq!(sample.paper, Paper::English);
+    assert_eq!(sample.lines, 2);
+    assert_eq!(sample.ink, ink);
+    assert_eq!(sample.saved_on.as_deref(), Some("2026-11-12"));
+    let revision = Step { index: 1, ..step };
+    assert_eq!(revision.revision_source(&state), Some((&ink, 2)));
+    assert!(revision.ink(&state).is_empty());
 }
 
 #[test]

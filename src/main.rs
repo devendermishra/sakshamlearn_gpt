@@ -130,6 +130,8 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
         aba_language
     } else if math_selected && page() != Page::Subjects {
         snapshot.math_language
+    } else if subject.id == "en" && page() != Page::Subjects {
+        Language::English
     } else {
         Language::Hindi
     };
@@ -156,7 +158,7 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
         .catalog
         .topics(subject)
         .map(|topic| {
-            if language == Language::English {
+            if math_selected && language == Language::English {
                 content::english_math_topic(topic)
             } else {
                 topic
@@ -210,6 +212,8 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                         let default_grade = snapshot.catalog.topics(item).map(|topic| topic.grade).max();
                         let (name, lang) = if id == "math" {
                             (snapshot.math_language.text("गणित", "Mathematics"), snapshot.math_language.code())
+                        } else if id == "en" {
+                            (item.name.as_str(), Language::English.code())
                         } else {
                             (item.name.as_str(), "hi")
                         };
@@ -326,6 +330,9 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                     )
                 });
                 let ink = step.ink(&snapshot);
+                let revision_source = step
+                    .revision_source(&snapshot)
+                    .map(|(ink, lines)| (ink.clone(), lines));
                 let helper_draft = session.helper.clone().unwrap_or_default();
                 let activity_key = format!("{}-{review}-{index}", step.key());
                 let total = topic.exercises.len();
@@ -336,6 +343,7 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                     h1 { "{title}" }
                     if recall { h2 { "{recall_label}" } } else { p { class: "step", "{practice_label} {index + 1} / {total}" } }
                     Activity { kind, initial: ink, helper_draft, scale, recall, language,
+                        ruled_paper: content::Paper::for_subject(&subject), revision_source,
                         on_input: move |input| {
                             let mut next = data.peek().clone();
                             let step = Step { subject: &subject, topic: &topic, review, index };

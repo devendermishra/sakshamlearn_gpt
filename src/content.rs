@@ -1,3 +1,4 @@
+mod english;
 mod hindi;
 mod mathematics;
 pub use mathematics::{generate_practice, GeneratedPractice, PracticeSkill};
@@ -75,6 +76,19 @@ impl Topic {
                     index + 1
                 ));
             }
+            if matches!(exercise.kind, Kind::Revise(..))
+                && !index.checked_sub(1).is_some_and(|previous| {
+                    matches!(
+                        self.exercises[previous].kind,
+                        Kind::Compose(..) | Kind::Revise(..)
+                    )
+                })
+            {
+                return Err(format!(
+                    "Put a writing exercise before revision exercise {}.",
+                    index + 1
+                ));
+            }
         }
         if self.recall.is_empty() || !self.recall.iter().all(Question::valid) {
             return Err(
@@ -119,9 +133,18 @@ pub enum Paper {
     Notebook,
     NotebookCarry,
     NotebookBorrow,
+    English,
 }
 
 impl Paper {
+    pub fn for_subject(subject: &str) -> Self {
+        if subject == "en" {
+            Self::English
+        } else {
+            Self::Hindi
+        }
+    }
+
     pub fn regrouping_cells(self) -> usize {
         match self {
             Self::NotebookCarry => 1,
@@ -134,6 +157,7 @@ impl Paper {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Kind {
     Choice(Question),
+    Picture(Picture, Question),
     Read(String, Question),
     Answer(String, Question),
     Trace {
@@ -142,6 +166,7 @@ pub enum Kind {
         paper: Paper,
     },
     Compose(String, usize, Option<String>),
+    Revise(String, usize),
     Solve {
         prompt: String,
         solution: String,
@@ -165,6 +190,37 @@ pub enum Kind {
         visual: String,
         question: Question,
     },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Picture {
+    Animals,
+    Food,
+    Play,
+}
+
+impl Picture {
+    pub fn illustration(self) -> (&'static str, &'static str) {
+        use base64::{engine::general_purpose::STANDARD, Engine as _};
+        use std::sync::OnceLock;
+
+        static ANIMALS: OnceLock<String> = OnceLock::new();
+        static FOOD: OnceLock<String> = OnceLock::new();
+        static PLAY: OnceLock<String> = OnceLock::new();
+        // Mridang, Class 1 pp. 47 and 84 and Class 2 p. 8, NCERT.
+        let (cache, jpeg, alt): (_, &[u8], _) = match self {
+            Self::Animals => (&ANIMALS, include_bytes!("content/english/pictures/animals.jpg"),
+                "Animals around a tree, including a monkey on the trunk and a lion."),
+            Self::Food => (&FOOD, include_bytes!("content/english/pictures/food.jpg"),
+                "Fruit and vegetables, including a watermelon slice, bananas and carrots."),
+            Self::Play => (&PLAY, include_bytes!("content/english/pictures/play.jpg"),
+                "Children playing outside. A child covers his eyes while another peeks from behind a tree."),
+        };
+        (
+            cache.get_or_init(|| format!("data:image/jpeg;base64,{}", STANDARD.encode(jpeg))),
+            alt,
+        )
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -208,12 +264,14 @@ pub struct Writing<'a> {
 }
 
 impl Kind {
-    pub fn writing(&self) -> Option<Writing<'_>> {
+    pub fn writing(&self, ruled_paper: Paper) -> Option<Writing<'_>> {
         let (label, model, lines, paper, solution) = match self {
             Self::Trace { model, paper, .. } => (model.as_str(), model.as_str(), 1, *paper, None),
-            Self::Compose(prompt, lines, _) => (prompt.as_str(), "", *lines, Paper::Hindi, None),
-            Self::Talk { prompt, .. } => (prompt.as_str(), "", 1, Paper::Hindi, None),
-            Self::Answer(_, question) => (question.prompt.as_str(), "", 1, Paper::Hindi, None),
+            Self::Compose(prompt, lines, _) | Self::Revise(prompt, lines) => {
+                (prompt.as_str(), "", *lines, ruled_paper, None)
+            }
+            Self::Talk { prompt, .. } => (prompt.as_str(), "", 1, ruled_paper, None),
+            Self::Answer(_, question) => (question.prompt.as_str(), "", 1, ruled_paper, None),
             Self::Solve {
                 prompt,
                 solution,
@@ -232,9 +290,11 @@ impl Kind {
                 },
                 Some(solution.as_str()),
             ),
-            Self::Choice(_) | Self::Read(..) | Self::Listen(..) | Self::Count { .. } => {
-                return None
-            }
+            Self::Choice(_)
+            | Self::Picture(..)
+            | Self::Read(..)
+            | Self::Listen(..)
+            | Self::Count { .. } => return None,
         };
         Some(Writing {
             label,
@@ -248,12 +308,14 @@ impl Kind {
     fn valid(&self) -> bool {
         let filled = |text: &str| !text.trim().is_empty();
         match self {
-            Self::Choice(question) => question.valid(),
+            Self::Choice(question) | Self::Picture(_, question) => question.valid(),
             Self::Read(text, question)
             | Self::Listen(text, question)
             | Self::Answer(text, question) => filled(text) && question.valid(),
             Self::Trace { model, .. } => filled(model),
-            Self::Compose(prompt, lines, _) => filled(prompt) && (1..=5).contains(lines),
+            Self::Compose(prompt, lines, _) | Self::Revise(prompt, lines) => {
+                filled(prompt) && (1..=5).contains(lines)
+            }
             Self::Solve {
                 prompt,
                 solution,
@@ -302,7 +364,7 @@ pub static BUNDLED: LazyLock<Vec<Subject>> = LazyLock::new(|| {
         Subject {
             id: "en".into(),
             name: "English".into(),
-            topics: Vec::new(),
+            topics: english::topics(),
         },
         Subject {
             id: "math".into(),
