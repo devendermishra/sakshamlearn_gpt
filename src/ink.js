@@ -1,4 +1,4 @@
-const {id, model, initial, readonly, square, plain, englishPaper, digitWidth = 0, equationWidth = 0, lineTrace = false, fullSheet = false, blankColumns = 1, noteColumns = 0, lines, allowMouse, english} = config;
+const {id, model, initial, readonly, square, plain, englishPaper, digitWidth = 0, equationWidth = 0, lineTrace = false, fullSheet = false, blankColumns = 1, noteColumns = 0, lines, allowMouse, english, sentenceWidth} = config;
 const container = document.getElementById(id);
 if (!container) return;
 if (englishPaper && model) {
@@ -11,11 +11,29 @@ if (englishPaper && model) {
 }
 
 const traceColumns = englishPaper ? 3 : 6;
+const rowHeight = 216;
+const wideModelWidth = englishPaper ? 1958 : 1305;
+const glyphPadding = 28;
+const englishFont = '144px "Patrick Hand", Arial, sans-serif';
+const hindiFont = '"Noto Sans Devanagari", Mangal, sans-serif';
+const text = (hindi, translation) => english ? translation : hindi;
+// Existing ink in a practice grid uses coordinates local to its original cells.
+const hasGridInk = initial.length === 2 * traceColumns && initial.some(cell => cell.length);
+const sentence = model && !square && !plain && !lineTrace && !hasGridInk ? sentenceRows() : [];
+if (sentence.length) {
+    container.classList.add("ink-sentence");
+    container.style.setProperty("--sentence-width", sentenceWidth + "px");
+    container.style.setProperty("--sentence-lines", sentence.length);
+    container.querySelector(".instructions").textContent = text(
+        "ऊपर बिंदियों पर लिखो। नीचे खाली पंक्तियों में खुद लिखो।",
+        "Trace the dots above. Then write on your own on the blank lines below."
+    );
+}
 const symbols = Array.from(model);
 const symbolWidth = equationWidth || digitWidth;
-const columns = model ? (equationWidth || (digitWidth ? 2 * digitWidth : lineTrace ? 1 : traceColumns)) : blankColumns;
+const columns = model ? (equationWidth || (digitWidth ? 2 * digitWidth : lineTrace || sentence.length ? 1 : traceColumns)) : blankColumns;
 const count = fullSheet ? 1 : noteColumns + columns * (model ? 2 : lines);
-const modelCell = model && !symbolWidth && !lineTrace;
+const modelCell = model && !symbolWidth && !lineTrace && !sentence.length;
 const grid = container.querySelector(".ink-grid");
 const notes = container.querySelector(".regroup-grid");
 const ink = Array.from({length: count}, (_, i) => initial[i] ?? []);
@@ -37,13 +55,45 @@ function scheduleDraw(index) {
     });
 }
 const history = [];
-const text = (hindi, translation) => english ? translation : hindi;
+
+function useHindiFont(ctx) {
+    ctx.font = '91px ' + hindiFont;
+    const ascent = ctx.measureText("क").actualBoundingBoxAscent;
+    if (ascent > 0) ctx.font = (91 * 71 / ascent) + 'px ' + hindiFont;
+}
+
+function sentenceRows() {
+    const measure = document.createElement("canvas").getContext("2d");
+    if (englishPaper) measure.font = englishFont;
+    else useHindiFont(measure);
+    const paragraphs = model.trim().split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    const cellWidth = englishPaper ? 540 : 240;
+    if (!/[\r\n]/.test(model.trim()) && (!/\s/.test(model.trim()) ||
+        measure.measureText(model).width <= cellWidth - glyphPadding)) return [];
+
+    const rows = [];
+    for (const paragraph of paragraphs) {
+        let row = "";
+        for (const word of paragraph.split(/\s+/)) {
+            const next = row ? row + " " + word : word;
+            if (row && measure.measureText(next).width > wideModelWidth - glyphPadding) {
+                rows.push(row);
+                row = word;
+            } else {
+                row = next;
+            }
+        }
+        rows.push(row);
+    }
+    return rows;
+}
 
 function paper(index) {
     const canvas = document.createElement("canvas");
     canvas.width = plain ? 1200 : englishPaper ? (model ? 540 : 1620) : square ? 216 : model ? 240 : 720;
-    canvas.height = plain ? 600 : 216;
-    if (lineTrace) canvas.width = englishPaper ? 1958 : 1305;
+    canvas.height = plain ? 600 : rowHeight;
+    if (lineTrace || sentence.length) canvas.width = wideModelWidth;
+    if (sentence.length) canvas.height = rowHeight * sentence.length;
     if (fullSheet) {
         const {width, height} = grid.getBoundingClientRect();
         canvas.width = Math.max(1, Math.min(1800, Math.round(width * 2)));
@@ -82,27 +132,27 @@ function glyph(ctx, text, kind) {
         ctx.restore();
         return;
     }
-    ctx.font = '91px "Noto Sans Devanagari", Mangal, sans-serif';
-    const ascent = ctx.measureText("क").actualBoundingBoxAscent;
-    if (ascent > 0) ctx.font = (91 * 71 / ascent) + 'px "Noto Sans Devanagari", Mangal, sans-serif';
-    ctx.fillText(text, ctx.canvas.width / 2, 143, ctx.canvas.width - 28);
+    useHindiFont(ctx);
+    ctx.textAlign = sentence.length ? "left" : "center";
+    ctx.fillText(text, sentence.length ? glyphPadding / 2 : ctx.canvas.width / 2, 143, ctx.canvas.width - glyphPadding);
     ctx.restore();
 }
 
 function drawEnglishModel(ctx, text) {
-    const {width, height} = ctx.canvas;
+    const width = ctx.canvas.width;
+    const height = rowHeight;
     const source = document.createElement("canvas");
     source.width = width;
     source.height = height;
     const modelContext = source.getContext("2d");
-    modelContext.font = '144px "Patrick Hand", Arial, sans-serif';
-    modelContext.textAlign = "center";
+    modelContext.font = englishFont;
+    modelContext.textAlign = sentence.length ? "left" : "center";
     modelContext.textBaseline = "alphabetic";
     modelContext.fillStyle = ctx.fillStyle;
     const baseline = 145;
     const cap = Math.round(modelContext.measureText("H").actualBoundingBoxAscent);
     const xHeight = Math.round(modelContext.measureText("x").actualBoundingBoxAscent);
-    modelContext.fillText(text, width / 2, baseline, width - 28);
+    modelContext.fillText(text, sentence.length ? glyphPadding / 2 : width / 2, baseline, width - glyphPadding);
 
     // Align the cap line, x-height and baseline with the printed workbook guides.
     const input = [0, baseline - cap, baseline - xHeight, baseline, height];
@@ -160,7 +210,18 @@ const references = new Map();
 function template(canvas, index) {
     const character = symbolWidth ? symbols[index % symbolWidth] : model;
     if (!references.has(character)) {
-        references.set(character, raster(canvas, ctx => glyph(ctx, character, "model")));
+        references.set(character, raster(canvas, ctx => {
+            if (!sentence.length) {
+                glyph(ctx, character, "model");
+                return;
+            }
+            for (const [index, row] of sentence.entries()) {
+                ctx.save();
+                ctx.translate(0, index * rowHeight);
+                glyph(ctx, row, "model");
+                ctx.restore();
+            }
+        }));
     }
     return references.get(character);
 }
@@ -276,7 +337,7 @@ if (!readonly) {
             message.textContent = text("ऊपर और नीचे कम से कम एक बार पूरी संख्या लिखो।", "Write the whole number at least once on each row.");
             return;
         }
-        if ((lineTrace && (!ink[0].length || !ink[1].length)) ||
+        if (((lineTrace || sentence.length) && (!ink[0].length || !ink[1].length)) ||
             (modelCell && (!ink.slice(1, columns).some(cell => cell.length) ||
                 !ink.slice(columns + 1).some(cell => cell.length)))) {
             message.textContent = text("बिंदियों पर और खाली जगह में लिखो।", "Write on the dots and in the blank space.");

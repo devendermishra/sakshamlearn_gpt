@@ -98,6 +98,7 @@ pub fn InkPad(
         "plain": paper == Paper::Blank,
         "fullSheet": full_sheet, "lineTrace": line_trace, "equationWidth": equation_width,
         "englishPaper": english_paper, "digitWidth": digit_width,
+        "sentenceWidth": 145.0 * scale.horizontal,
         "blankColumns": blank_columns, "noteColumns": notes, "lines": lines,
         "allowMouse": !cfg!(target_os = "android"), "english": language == Language::English,
     });

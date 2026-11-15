@@ -134,7 +134,7 @@ fn Choice(
     let answer_label = language.text("सही जवाब है:", "The correct answer is");
     rsx! {
         if !passage.is_empty() { p { class: "passage", "{passage}" } }
-        h2 { "{q.prompt}" }
+        h2 { class: "exercise-prompt", "{q.prompt}" }
         if !show() {
             p { {language.text("पहले अपना जवाब सोचो।", "Think of your answer first.")} }
             button { class: "primary", onclick: move |_| show.set(true), {language.text("विकल्प देखो", "Show choices")} }
@@ -338,7 +338,7 @@ pub fn Activity(
             }}
         },
         Kind::Compose(prompt, lines, dictation) => rsx! {
-            h2 { "{prompt}" }
+            h2 { class: "exercise-prompt", "{prompt}" }
             if let Some(words) = dictation {
                 details { summary { {language.text("बड़े बोलकर सुनाएँ", "An adult can read this aloud")} } p { class: "learning-text", "{words}" } }
             }

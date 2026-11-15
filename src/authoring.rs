@@ -381,10 +381,10 @@ fn ExerciseFields(
             let previous_guidance = guidance.clone();
             rsx! {
                 label { "Trace model"
-                    input { value: "{model}", oninput: move |event| on_change.call(Kind::Trace { model: event.value(), guidance: previous_guidance.clone(), paper }) }
+                    textarea { value: "{model}", oninput: move |event| on_change.call(Kind::Trace { model: event.value(), guidance: previous_guidance.clone(), paper }) }
                 }
                 label { "Writing guidance"
-                    input { value: "{guidance}", oninput: move |event| on_change.call(Kind::Trace { model: previous_model.clone(), guidance: event.value(), paper }) }
+                    textarea { value: "{guidance}", oninput: move |event| on_change.call(Kind::Trace { model: previous_model.clone(), guidance: event.value(), paper }) }
                 }
             }
         }
@@ -436,7 +436,7 @@ fn QuestionFields(question: Question, on_change: EventHandler<Question>) -> Elem
     let correct = question.clone();
     rsx! {
         label { "Question"
-            input { value: "{question.prompt}", oninput: move |event| {
+            textarea { value: "{question.prompt}", oninput: move |event| {
                 let mut updated = prompt.clone();
                 updated.prompt = event.value();
                 on_change.call(updated);
