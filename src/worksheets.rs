@@ -68,6 +68,16 @@ struct Draft {
     checked: bool,
 }
 
+fn text_language(text: &str, fallback: Language) -> Language {
+    if text.chars().any(|ch| ('\u{0900}'..='\u{097f}').contains(&ch)) {
+        Language::Hindi
+    } else if text.chars().any(|ch| ch.is_ascii_alphabetic()) {
+        Language::English
+    } else {
+        fallback
+    }
+}
+
 #[component]
 pub fn Worksheets(
     directory: PathBuf,
@@ -212,8 +222,7 @@ fn Exercise(
 ) -> Element {
     let sheet = &SHEETS[sheet];
     let task = &sheet.tasks[position];
-    let is_hindi = task.prompt.chars().any(|ch| ('\u{0900}'..='\u{097f}').contains(&ch));
-    let prompt_lang = if is_hindi { "hi" } else { "en" };
+    let prompt_language = text_language(&task.prompt, language);
     let (verb, complete, missed) = match &task.action {
         Action::Choice { correct, .. } => (
             language.text("छुओ", "Tap"),
@@ -251,8 +260,8 @@ fn Exercise(
     rsx! {
         div { class: "worksheet-task",
             p { class: "worksheet-action", "{verb}" }
-            if !task.context.is_empty() { p { class: "worksheet-context", lang: prompt_lang, "{task.context}" } }
-            h2 { lang: prompt_lang, "{task.prompt}" }
+            if !task.context.is_empty() { p { class: "worksheet-context", lang: text_language(&task.context, language).code(), "{task.context}" } }
+            h2 { lang: prompt_language.code(), "{task.prompt}" }
             details { class: "learner-help",
                 summary { {language.text("मदद", "Help")} }
                 p { "{hint}" }
@@ -314,7 +323,7 @@ fn Exercise(
                     }
                 },
                 Action::Trace { model } => {
-                    let paper = if is_hindi { Paper::Hindi } else if model.bytes().all(|byte| byte.is_ascii_digit()) { Paper::Digit } else { Paper::English };
+                    let paper = if prompt_language == Language::Hindi { Paper::Hindi } else if model.bytes().all(|byte| byte.is_ascii_digit()) { Paper::Digit } else { Paper::English };
                     let mut next = draft.clone();
                     rsx! {
                         InkPad { id: "worksheet-ink", model: model.clone(), initial: draft.ink.clone(), scale,
@@ -355,6 +364,24 @@ fn same_number(input: &str, answer: &str) -> bool {
 mod tests {
     use super::*;
     use std::collections::{BTreeSet, HashSet};
+
+    #[test]
+    fn hindi_worksheet_directions_are_in_hindi() {
+        let translation_prompts = [
+            "🐘 Elephant", "🐐 Goat", "🐦 Bird", "🐟 Fish", "🦁 Lion",
+            "↑ North", "← West", "→ East", "↓ South",
+        ];
+        for sheet in SHEETS.iter().filter(|sheet| sheet.subject == "hi") {
+            let directions = [&*sheet.title, &*sheet.adult].into_iter().chain(
+                sheet.tasks.iter().flat_map(|task| {
+                    [&*task.prompt, &*task.context, &*task.hint]
+                }).filter(|text| !translation_prompts.contains(text)),
+            );
+            for text in directions {
+                assert!(!text.chars().any(|ch| ch.is_ascii_alphabetic()), "{}: {text}", sheet.id);
+            }
+        }
+    }
 
     #[test]
     fn all_supplied_packs_have_unique_sheets_and_valid_tasks() {

@@ -629,6 +629,76 @@ HINDI_BANKS = [
     (range(177, 181), ["क्यों", "कैसे", "कब", "कहाँ", "कौन"], ["कौन", "कहाँ", "कब", "कैसे"]),
 ]
 
+# The bilingual source uses English for some directions and reference text.
+# Keep English vocabulary where matching it to Hindi is part of the exercise.
+HINDI_ACTIVITY_TEXT = {
+    "🐾 जीव-जगत — Animal World": "🐾 जीव-जगत",
+    "🍎 हमारा खान-पान — Our Food": "🍎 हमारा खान-पान",
+    "👨‍👩‍👧 परिवार — Family": "👨‍👩‍👧 परिवार",
+    "🌈 रंग ही रंग — Colours Everywhere": "🌈 रंग ही रंग",
+    "🌱 हरी-भरी धरती — Green Earth": "🌱 हरी-भरी धरती",
+    "🤝 मित्रता — Friendship": "🤝 मित्रता",
+    "🌙 आकाश — The Sky": "🌙 आकाश",
+    "Draw in the box below. Write its Hindi name on the line, then write one sentence about it.":
+        "नीचे खाने में चित्र बनाओ। फिर उसका हिंदी नाम और उसके बारे में एक वाक्य लिखो।",
+    "Write what sound each animal makes in Hindi.": "हर जानवर की आवाज़ हिंदी में लिखो।",
+    "Which animal do you like most? Write 2 sentences about it.":
+        "तुम्हें कौन-सा जानवर सबसे अच्छा लगता है? उसके बारे में दो वाक्य लिखो।",
+    "Draw your favourite meal in the plate. Then list what is on the plate and write a sentence.":
+        "थाली में अपने पसंदीदा खाने का चित्र बनाओ। फिर उसमें रखी चीज़ों के नाम और एक वाक्य लिखो।",
+    "मेरी थाली / My plate": "मेरी थाली",
+    "What do you eat for breakfast? Write 2 sentences in Hindi.":
+        "तुम नाश्ते में क्या खाते हो? हिंदी में दो वाक्य लिखो।",
+    "Complete the sentences and draw a festival scene in the box.":
+        "वाक्य पूरे करो और खाने में त्योहार का चित्र बनाओ।",
+    "Draw 4 family members. Write their relationship (दादा, माँ, भाई, etc.) on the line.":
+        "अपने परिवार के चार लोगों के चित्र बनाओ। हर चित्र के नीचे रिश्ता लिखो, जैसे दादा, माँ या भाई।",
+    "Write 3 sentences about your family. Use: मेरे परिवार में / वह / हम":
+        "अपने परिवार के बारे में तीन वाक्य लिखो। इनका इस्तेमाल करो: मेरे परिवार में / वह / हम।",
+    "🌸 गुलाब (rose)": "🌸 गुलाब",
+    "🌼 सूरजमुखी (sunflower)": "🌼 सूरजमुखी",
+    "🌿 पत्ता (leaf)": "🌿 पत्ता",
+    "🌊 समुद्र (sea)": "🌊 समुद्र",
+    "☁️ बादल (cloud)": "☁️ बादल",
+    "Find and write a rhyming word": "तुक मिलाने वाला एक शब्द ढूँढ़कर लिखो।",
+    "Write one word that rhymes with each Hindi colour word.":
+        "हर रंग के नाम से तुक मिलाने वाला एक शब्द लिखो।",
+    "लाल\n(Red) · नारंगी\n(Orange) · हरा\n(Green) · नीला\n(Blue) · बैंगनी\n(Violet)":
+        "लाल · नारंगी · हरा · नीला · बैंगनी",
+    "Label the rainbow colours in hindi": "इंद्रधनुष के रंगों के नाम हिंदी में लिखो।",
+    "Write the Hindi name for each colour of the rainbow below each stripe.":
+        "इंद्रधनुष की हर पट्टी के नीचे उस रंग का हिंदी नाम लिखो।",
+    "Use the pattern: ___ रंग है ___ का। Complete 2 lines then add a line of your own!":
+        "इस ढाँचे का इस्तेमाल करो: ___ रंग है ___ का। दो पंक्तियाँ पूरी करो, फिर अपनी एक पंक्ति जोड़ो।",
+    "सजीव (Living) · निर्जीव (Non-living)": "सजीव · निर्जीव",
+    "Nature word sort — living or non-living": "प्रकृति से जुड़े शब्दों को सजीव और निर्जीव समूहों में बाँटो।",
+    "Day 1 — दिन 1 · Day 3 — दिन 3 · Day 7 — दिन 7": "पहला दिन · तीसरा दिन · सातवाँ दिन",
+    "My seed diary — draw what you observe": "मेरे बीज की डायरी — जो दिखे, उसका चित्र बनाओ।",
+    "Draw what the seed looks like on each day and write one sentence.":
+        "हर दिन बीज जैसा दिखता है, उसका चित्र बनाओ और एक वाक्य लिखो।",
+    'Continue this story in 3–4 sentences: "एक किसान था। उसके पास एक छोटा खेत था।"':
+        "इस कहानी को तीन या चार वाक्यों में आगे बढ़ाओ: ‘एक किसान था। उसके पास एक छोटा खेत था।’",
+    'Think about "शेर और चूहे की दोस्ती". Write your answers.':
+        "‘शेर और चूहे की दोस्ती’ की कहानी याद करो और अपने जवाब लिखो।",
+    "Use 🐘 हाथी and 🐭 चूहा as characters. Write 3–4 sentences about them becoming friends.":
+        "🐘 हाथी और 🐭 चूहे की कहानी लिखो। तीन या चार वाक्यों में बताओ कि वे दोस्त कैसे बने।",
+    "Draw a night sky scene with चाँद, तारे and बादल. Label each one.":
+        "रात के आकाश में चाँद, तारे और बादल बनाओ। हर चीज़ का नाम लिखो।",
+    "मेरा आकाश — My sky": "मेरा आकाश",
+    "Fill in the blanks to complete this poem about चंदा मामा, then write your own last line!":
+        "खाली जगह भरकर चंदा मामा की कविता पूरी करो। फिर आखिरी पंक्ति खुद लिखो।",
+    "Write 4–5 sentences about what you see in the sky. Use: आकाश में / दिन में / रात को":
+        "आकाश में क्या दिखता है? चार या पाँच वाक्य लिखो। इनका इस्तेमाल करो: आकाश में / दिन में / रात को।",
+}
+
+
+def localize_hindi_activity(item):
+    item["title"] = HINDI_ACTIVITY_TEXT.get(item["title"], item["title"])
+    for task in item["tasks"]:
+        for field in ("prompt", "context", "hint", "key"):
+            if task.get(field) in HINDI_ACTIVITY_TEXT:
+                task[field] = HINDI_ACTIVITY_TEXT[task[field]]
+
 
 def hindi_detail(result, index, block):
     if index in HINDI_MATCH:
@@ -992,6 +1062,8 @@ def main():
         sheets = builder.get(pack[0], detailed)(pack, source)
         for item in sheets:
             item["adult"] = item["adult"].strip()
+            if pack[0] == "hi-activities":
+                localize_hindi_activity(item)
             assert item["tasks"], f'No exercises found in {item["title"]}'
         print(f"{pack[0]}: {len(sheets)} worksheets, {sum(len(item['tasks']) for item in sheets)} tasks")
         combined.extend(sheets)
