@@ -154,6 +154,7 @@ pub fn Authoring(
                             rsx! {
                                 Activity { key: "exercise-{index}", kind: exercise.kind.clone(), initial: Vec::new(), scale,
                                     language, ruled_paper: paper, revision_source: previous_writing(),
+                                    handwriting: subject_id == "en",
                                     on_input: move |input: Input| if !input.is_draft() {
                                         previous_writing.set(match input {
                                             Input::Submit(ink) => output_lines.map(|lines| (ink, lines)),
@@ -166,7 +167,7 @@ pub fn Authoring(
                         }
                     } else if let Some(question) = topic.recall.get(index - topic.exercises.len()) {
                         Activity { key: "recall-{index}", kind: Kind::Choice(question.clone()), initial: Vec::new(), scale, recall: true,
-                            language,
+                            language, handwriting: subject_id == "en",
                             on_input: move |_| preview.set(Some(index + 1)) }
                     } else {
                         p { "Preview complete." }

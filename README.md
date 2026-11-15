@@ -6,13 +6,15 @@ Saksham is an offline learning app for an Android tablet in landscape. Choose Cl
 
 Open **English** and select **Class 1** or **Class 2**. The reading cards use original practice passages and questions based on the units in the two *Mridang* textbooks in `books/English`. Class 1 covers letter sounds, rhymes, familiar words and short sentences. Class 2 adds longer passages, event order, reasons and short written answers. In **Listen and talk**, an adult reads the listening script and takes turns with the learner. Each activity has immediate recall and follow-up reviews. A short break is offered after two exercises when more exercises remain.
 
-Open **Writing practice plan** and do one card a day. Class 1 moves from letter formation to labels, word spacing and a sentence. **Trace the alphabet** gives separate practice for all 26 capital and small letters. Class 2 moves from letter height and spacing to dictation, questions and two-sentence writing. On-screen trace models use print on four-line paper. The Class 2 plan points to pages in `practice_books/English-Cursive-Workbook.pdf` for joined handwriting with an adult.
+Open **Writing practice plan** and do one card a day. Class 1 moves from letter formation to labels, word spacing and a sentence. **Trace the alphabet** lets you open any of the 26 capital or small letters directly. Class 2 moves from letter height and spacing to dictation, questions and two-sentence writing. On-screen trace models use the bundled Patrick Hand font on four-line paper. The Class 2 plan points to pages in `practice_books/English-Cursive-Workbook.pdf` for joined handwriting with an adult.
 
 The three picture activities use illustrations from NCERT’s *Mridang*, Class 1 pages 47 and 84 and Class 2 page 8. The app includes these pictures for offline use.
 
 Use **Sound out words** for short-a word families such as `-an` and `-ap`. Use **Read and write common words** to read words in short sentences and practise them by tracing, copying or writing from dictation. The calibrated English guides are 4 mm apart, as in the workbook.
 
 In Class 1, **Write small letters** covers lowercase a–z in pairs. In both classes, **Write practice words** gives the `-an` and `-ap` families their own tracing and handwriting cards.
+
+Open **Daily recall** in Hindi, English, or Mathematics after completing a topic. Each round contains up to three questions per completed topic, in chapter order, and can be resumed during the same India calendar day. In the Hindi chapters, choose a letter or matra to practise one form and return to the chapter.
 
 ## Everyday vocabulary
 
@@ -26,22 +28,32 @@ Install Rust, the Dioxus 0.7.10 CLI, and Android Studio with a JDK, Android SDK,
 rustup target add aarch64-linux-android
 cargo test --locked
 node --test tests/trace.cjs
-dx bundle --platform android --target aarch64-linux-android --package-types apk --no-default-features --features mobile --locked
+./build-android.ps1
 adb devices
-adb install -r <apk-path>
+adb install -r target/Saksham-Android.apk
 ```
 
-Use the APK path reported by Dioxus. If the Android build produces an unsigned APK, sign it with the Android SDK build tools and a development key before installing. Enable USB debugging only for development. Run `cargo run --locked` for a Windows desktop preview with WebView2.
+The script builds an ARM64 debug APK, adds the Saksham launcher icon, and packages the result with Gradle's debug signing key. Keep the same signing key for in-place updates. You can also copy the APK to the tablet and open it there. Run `cargo run --locked` for a Windows desktop preview with WebView2.
 
 On the tablet, open **बड़ों के लिए**, set a parent PIN, and measure both edges of the 80 mm reference square with a physical ruler. Enter both measurements, adjust the guides, and check the Hindi and Mathematics samples with the ruler before saving. Repeat if the device display scaling changes. The default size before calibration is an estimate. Writing accepts active stylus input. Tap buttons with a finger or stylus. Progress and saved writing live in the app's local storage and will be erased if its app data is cleared.
 
+## Rough sheets and worksheets
+
+Open Hindi, Mathematics, or English and choose **Rough Sheet** for pen writing or **Worksheets** for guided practice in the selected class. Rough sheets use the calibrated Hindi rules, English four-line guides, or Mathematics grid. **Tracing Practice** offers common words and short sentences in Hindi and English, and numbers, addition facts, and times tables in Mathematics. Each subject has one rough sheet for both classes. The app saves completed strokes, answers, and the current worksheet step on the device. **Take a break** returns to the same worksheet task when the learner chooses **Continue**.
+
+Worksheets are bundled for offline use. The six Word packs can be re-imported with:
+
+```powershell
+python tools/import_worksheets.py <folder-with-the-six-docx-files> src/content/worksheets.json
+```
+
 ## Parent-controlled Focus Mode
 
-**Shared tablet.** In Android Settings, search for **Screen pinning** or **App pinning** and enable it. Enable the device unlock requirement for unpinning if the tablet offers it. In Saksham, enter the parent PIN and select **Start Focus Mode**. Confirm Android's pinning prompt. The app shows **Pinned** once Android reports it. Android's own unpin gesture is still available.
+Set a parent PIN once through **For parents** or the Focus Mode shortcut. Tap the **Focus Mode** shortcut to start. To leave Focus Mode from Saksham, tap the shortcut again and enter the parent PIN. The parent settings button opens the same PIN prompt.
 
-**Dedicated tablet.** Use an Android Enterprise device policy controller (DPC) provisioned by the tablet administrator on a device prepared for dedicated use. Provisioning may require a factory reset. Add the Saksham APK package ID to the DPC's lock-task allowlist. Confirm the installed package ID using the SDK's `apkanalyzer manifest application-id <apk-path>` if needed. Configure lock-task features to omit Home, Recents, notifications, and other app entry points. From Saksham's parent area start Focus Mode and confirm the status reads **Locked**.
+**Shared tablet.** In Android Settings, enable **Screen pinning** or **App pinning**. Enable the device unlock requirement for unpinning if the tablet offers it. Android may ask for confirmation when the learner starts Focus Mode. Saksham displays **Pinned** after Android confirms. Android's own unpin gesture remains available.
 
-Before handing over a managed tablet, test parent PIN exit and DPC recovery. If the parent PIN is unavailable or the app cannot open its parent screen, the administrator can remove Saksham from the DPC's lock-task allowlist to release the device, then service the app from Android settings. Keep access to the DPC and its admin credentials outside the tablet. See [Android's Lock Task Mode guide](https://developer.android.com/work/dpc/dedicated-devices/lock-task-mode).
+**Dedicated tablet.** Add Saksham's package ID to the administrator's lock-task allowlist with the tablet's device policy controller (DPC). Configure the desired restrictions for Home, Recents, and notifications. Start Focus Mode and confirm Saksham displays **Locked**. Verify the parent PIN exit and test administrator recovery by removing the app from the allowlist. See the [Android lock task mode guide](https://developer.android.com/work/dpc/dedicated-devices/lock-task-mode).
 
 ## Device acceptance
 

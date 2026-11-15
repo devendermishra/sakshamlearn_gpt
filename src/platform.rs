@@ -1,20 +1,11 @@
 use std::{io, path::PathBuf};
 
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
 #[derive(Clone, Copy, PartialEq)]
 pub enum Focus {
     Off,
     Pinned,
     Locked,
-}
-
-impl Focus {
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Off => "Off",
-            Self::Pinned => "Pinned",
-            Self::Locked => "Locked",
-        }
-    }
 }
 
 #[cfg(not(target_os = "android"))]

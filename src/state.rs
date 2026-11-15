@@ -1,4 +1,4 @@
-use crate::content::{generate_practice, CustomCatalog, GeneratedPractice, Paper, PracticeSkill};
+use crate::content::{generate_practice, CustomCatalog, GeneratedPractice, Paper, PracticeSkill, Question, Topic};
 use crate::language::Language;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -26,6 +26,8 @@ pub struct State {
     session: Option<Session>,
     pub sessions: BTreeMap<String, Session>,
     pub finished: BTreeSet<String>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub daily_recall: BTreeMap<String, DailyRecall>,
     pub reviews: BTreeMap<String, Review>,
     pub samples: BTreeMap<String, Sample>,
     pub history: BTreeMap<String, Vec<Sample>>,
@@ -33,6 +35,57 @@ pub struct State {
     pub scale: Option<f64>,
     pub vertical_scale: Option<f64>,
     pub pin: Option<Pin>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct DailyRecall {
+    pub date: String,
+    pub questions: Vec<DailyQuestion>,
+    pub position: usize,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct DailyQuestion {
+    pub title: String,
+    pub question: Question,
+    pub english: Option<(String, Question)>,
+}
+
+impl DailyRecall {
+    pub fn new(state: &State, subject: &str, topics: &[&Topic], date: time::Date) -> Self {
+        let mut questions = Vec::new();
+        for topic in topics {
+            if !state.finished.contains(&format!("{subject}/{}", topic.progress_id())) {
+                continue;
+            }
+            let len = topic.recall.len();
+            if len == 0 {
+                continue;
+            }
+            let start = date.to_julian_day().rem_euclid(len as i32) as usize;
+            let mut indices = Vec::new();
+            for offset in 0..len {
+                let index = (start + offset) % len;
+                if !indices.iter().any(|&previous| topic.recall[previous] == topic.recall[index]) {
+                    indices.push(index);
+                    if indices.len() == 3 {
+                        break;
+                    }
+                }
+            }
+            indices.sort_unstable();
+            let english = (subject == "math").then(|| crate::content::english_math_topic(topic));
+            for index in indices {
+                questions.push(DailyQuestion {
+                    title: topic.title.clone(),
+                    question: topic.recall[index].clone(),
+                    english: english.and_then(|item| item.recall.get(index)
+                        .map(|question| (item.title.clone(), question.clone()))),
+                });
+            }
+        }
+        Self { date: date.to_string(), questions, position: 0 }
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -112,7 +165,7 @@ pub struct Review {
     pub interval: usize,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Pin {
     salt: [u8; 16],
     digest: [u8; 32],
@@ -272,10 +325,22 @@ pub fn load(path: &Path) -> io::Result<State> {
 }
 
 pub fn save(path: &Path, state: &State) -> io::Result<()> {
+    save_local(path, state)
+}
+
+pub fn load_local<T: serde::de::DeserializeOwned + Default>(path: &Path) -> io::Result<T> {
+    match fs::File::open(path) {
+        Ok(file) => serde_json::from_reader(io::BufReader::new(file)).map_err(io::Error::other),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(T::default()),
+        Err(error) => Err(error),
+    }
+}
+
+pub fn save_local<T: Serialize>(path: &Path, value: &T) -> io::Result<()> {
     let parent = path.parent().ok_or(io::ErrorKind::InvalidInput)?;
     fs::create_dir_all(parent)?;
     let mut file = tempfile::NamedTempFile::new_in(parent)?;
-    serde_json::to_writer(&mut file, state)?;
+    serde_json::to_writer(&mut file, value)?;
     file.flush()?;
     file.as_file().sync_all()?;
     file.persist(path).map_err(|err| err.error)?;

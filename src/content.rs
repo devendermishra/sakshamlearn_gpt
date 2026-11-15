@@ -135,6 +135,7 @@ pub enum Paper {
     NotebookCarry,
     NotebookBorrow,
     English,
+    Blank,
 }
 
 impl Paper {

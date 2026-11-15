@@ -61,6 +61,51 @@ impl Step<'_> {
             .map(|sample| sample.ink.clone())
             .unwrap_or_default()
     }
+    pub fn trace_only(&self, state: &mut State, input: Input, date: &str) -> Option<bool> {
+        if !matches!(self.exercise(), Some(Kind::Trace { .. })) {
+            return None;
+        }
+        match input {
+            Input::Draft(ink) => self.save_writing(state, ink, false, None, date),
+            Input::Submit(ink) => self.save_writing(state, ink, true, None, date),
+            _ => None,
+        }
+    }
+
+    fn save_writing(&self, state: &mut State, ink: Ink, submitted: bool, correct: Option<bool>, date: &str) -> Option<bool> {
+        let writing = self.exercise()?.writing(Paper::for_subject(self.subject))?;
+        let sample_id = self.sample_key()?;
+        if submitted
+            && writing.paper == Paper::English
+            && writing.lines > 1
+            && (ink.len() != writing.lines || ink.iter().any(Vec::is_empty))
+        {
+            return None;
+        }
+        if ink.iter().any(|cell| !cell.is_empty()) {
+            let sample = Sample {
+                label: format!("{} · {}", self.topic.title, writing.label),
+                model: writing.model.into(),
+                solution: writing.solution.map(str::to_owned),
+                correct,
+                lines: writing.lines,
+                paper: writing.paper,
+                ink,
+                saved_on: submitted.then(|| date.to_owned()),
+            };
+            if submitted {
+                state.samples.remove(&sample_id);
+                state.history.entry(sample_id).or_default().push(sample);
+            } else {
+                state.samples.insert(sample_id, sample);
+            }
+        } else if submitted {
+            return None;
+        } else {
+            state.samples.remove(&sample_id);
+        }
+        Some(submitted)
+    }
     pub fn revision_source<'a>(&self, state: &'a State) -> Option<(&'a Ink, usize)> {
         if !matches!(self.exercise(), Some(Kind::Revise(..))) {
             return None;
@@ -118,38 +163,7 @@ impl Step<'_> {
             Input::SubmitSolution { ink, correct } => Some((ink, true, Some(correct))),
         };
         if let Some((ink, submitted, correct)) = writing_input {
-            let writing = self.exercise()?.writing(Paper::for_subject(self.subject))?;
-            let sample_id = self.sample_key()?;
-            if submitted
-                && writing.paper == Paper::English
-                && writing.lines > 1
-                && (ink.len() != writing.lines || ink.iter().any(Vec::is_empty))
-            {
-                return None;
-            }
-            if ink.iter().any(|cell| !cell.is_empty()) {
-                let sample = Sample {
-                    label: format!("{} · {}", self.topic.title, writing.label),
-                    model: writing.model.into(),
-                    solution: writing.solution.map(str::to_owned),
-                    correct,
-                    lines: writing.lines,
-                    paper: writing.paper,
-                    ink,
-                    saved_on: submitted.then(|| date.to_owned()),
-                };
-                if submitted {
-                    state.samples.remove(&sample_id);
-                    state.history.entry(sample_id).or_default().push(sample);
-                } else {
-                    state.samples.insert(sample_id, sample);
-                }
-            } else if submitted {
-                return None;
-            } else {
-                state.samples.remove(&sample_id);
-            }
-            if !submitted {
+            if !self.save_writing(state, ink, submitted, correct, date)? {
                 return Some(Outcome::Continue);
             }
         }

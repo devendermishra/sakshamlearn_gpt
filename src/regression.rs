@@ -6,6 +6,59 @@ use crate::{
 };
 
 #[test]
+fn daily_recall_uses_completed_topics_in_course_order_and_restores_position() {
+    let date = time::Date::from_calendar_date(2026, time::Month::November, 14).unwrap();
+    let mut state = State::default();
+    let mut topics: Vec<_> = bundled("math").topics.iter().filter(|topic| topic.grade == 2).collect();
+    topics.sort_by_key(|topic| crate::curriculum::order("math", topic));
+    let chosen = topics.iter().copied().filter(|topic| topic.recall.len() >= 4).take(2).collect::<Vec<_>>();
+    for topic in chosen.iter().rev() {
+        state.finished.insert(format!("math/{}", topic.progress_id()));
+    }
+    let mut round = state::DailyRecall::new(&state, "math", &topics, date);
+    assert_eq!(round.questions.len(), 6);
+    for (chunk, topic) in round.questions.chunks(3).zip(chosen) {
+        let indices: Vec<_> = chunk.iter().map(|item| {
+            assert_eq!(item.title, topic.title);
+            let index = topic.recall.iter().position(|question| *question == item.question).unwrap();
+            let english = content::english_math_topic(topic);
+            assert_eq!(item.english.as_ref().unwrap().1, english.recall[index]);
+            index
+        }).collect();
+        assert!(indices.windows(2).all(|pair| pair[0] < pair[1]));
+    }
+    let tomorrow = state::DailyRecall::new(&state, "math", &topics, date.next_day().unwrap());
+    assert_ne!(round.date, tomorrow.date);
+    assert_ne!(
+        round.questions.iter().map(|item| &item.question).collect::<Vec<_>>(),
+        tomorrow.questions.iter().map(|item| &item.question).collect::<Vec<_>>()
+    );
+    round.position = 4;
+    state.daily_recall.insert("math/2".into(), round);
+    let reopened: State = serde_json::from_slice(&serde_json::to_vec(&state).unwrap()).unwrap();
+    assert_eq!(reopened.daily_recall["math/2"].position, 4);
+    assert_eq!(reopened.finished, state.finished);
+    let legacy: State = serde_json::from_str(r#"{"finished":["math/numbers-1-3"]}"#).unwrap();
+    assert!(legacy.daily_recall.is_empty());
+    assert!(legacy.finished.contains("math/numbers-1-3"));
+}
+
+#[test]
+fn jumping_to_a_hindi_matra_saves_a_sample_without_advancing_the_lesson() {
+    let topic = bundled("hi").topics.iter().find(|topic| topic.id == "barakhadi-1").unwrap();
+    let step = Step { subject: "hi", topic, review: false, index: 3 };
+    assert_eq!(crate::curriculum::letter_model("hi", topic, step.index), Some("की"));
+    let mut state = State::default();
+    state.sessions.insert(step.session_key(), Session::new("hi".into(), topic.id.clone(), false));
+    let ink = vec![vec![vec![[0.1, 0.2], [0.4, 0.5]]]];
+    assert_eq!(step.trace_only(&mut state, Input::Submit(ink), "2026-11-14"), Some(true));
+    assert_eq!(state.sessions[&step.session_key()].step, 0);
+    assert!(state.finished.is_empty());
+    assert!(state.reviews.is_empty());
+    assert_eq!(state.history["hi/barakhadi-1/ii"][0].model, "की");
+}
+
+#[test]
 fn english_mathematics_preserves_content_structure_and_progress_keys() {
     let check_english = |text: &str| {
         assert!(!text.is_empty());

@@ -1,6 +1,7 @@
 use crate::{
     content::{ArithmeticHelp, Operation, Paper},
     language::Language,
+    keypad::{Keys, NumericField},
     state::{HelperDraft, Ink},
     writing::{InkPad, PaperScale},
 };
@@ -78,6 +79,7 @@ pub fn NumberCheck(
     rsx! {
         form { class: "number-check", onsubmit: move |event| {
             event.prevent_default();
+            if result() == Check::Correct { return; }
             match parse_numbers(&input()) {
                 Some(numbers) if numbers == expected => {
                     result.set(Check::Correct);
@@ -90,18 +92,18 @@ pub fn NumberCheck(
                 _ => result.set(Check::Invalid),
             }
         },
-            label { "{label}"
-                input {
-                    value: "{input}",
-                    inputmode: if count == 1 { "numeric" } else { "text" },
-                    maxlength: 32,
-                    disabled: result() == Check::Correct,
-                    oninput: move |event| { input.set(event.value()); result.set(Check::Waiting); },
-                }
+            NumericField { label, value: input(), language, limit: 32,
+                keys: if count == 1 { Keys::Whole } else { Keys::List },
+                disabled: result() == Check::Correct,
+                on_change: move |value| { input.set(value); result.set(Check::Waiting); }
             }
             button { r#type: "submit", disabled: result() == Check::Correct,
                 {language.text("जाँचो", "Check")} }
-            p { role: "status", "{feedback}" }
+            if matches!(result(), Check::Wrong | Check::Correct) {
+                crate::activity::AnswerFeedback { correct: result() == Check::Correct, text: feedback }
+            } else {
+                p { role: "status", "{feedback}" }
+            }
         }
     }
 }

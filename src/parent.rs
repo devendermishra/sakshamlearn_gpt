@@ -1,7 +1,9 @@
 use crate::{
     authoring::Authoring,
     content::CustomCatalog,
-    platform,
+    keypad::{Keys, NumericField},
+    language::Language,
+    focus::{Controls, FocusButton},
     state::{self, Pin, State},
     writing::{InkPad, PaperScale, CALIBRATION_MM},
 };
@@ -9,7 +11,8 @@ use dioxus::prelude::*;
 #[component]
 pub fn Parent(
     data: Signal<State>,
-    commit: Callback<State>,
+    save_pin: Callback<Pin, Result<(), String>>,
+    focus_controls: Controls,
     publish: Callback<CustomCatalog, Result<(), String>>,
     save_calibration: Callback<PaperScale, Result<(), String>>,
 ) -> Element {
@@ -42,29 +45,28 @@ pub fn Parent(
                 form { onsubmit: move |event| {
                     event.prevent_default();
                     let value = input();
-                    let mut next = data.peek().clone();
+                    let current = data.peek().pin.clone();
                     if value.len() < 4 || value.len() > 8 || !value.bytes().all(|byte| byte.is_ascii_digit()) {
                         error.set("Use 4 to 8 digits.".into());
-                    } else if let Some(pin) = &next.pin {
+                    } else if let Some(pin) = current {
                         if pin.matches(&value) { authorized.set(true); error.set(String::new()); }
                         else { error.set("Incorrect PIN.".into()); }
                     } else {
-                        next.pin = Some(Pin::new(&value));
-                        commit.call(next);
-                        authorized.set(true);
-                        error.set(String::new());
+                        match save_pin.call(Pin::new(&value)) {
+                            Ok(()) => { authorized.set(true); error.set(String::new()); }
+                            Err(message) => error.set(message),
+                        }
                     }
                     input.set(String::new());
                 },
-                    label { if create { "Set a parent PIN" } else { "Enter your parent PIN" }
-                        input { r#type: "password", inputmode: "numeric", maxlength: "8", value: "{input}",
-                            oninput: move |event| input.set(event.value()) }
-                    }
+                    NumericField { label: if create { "Set a parent PIN" } else { "Enter your parent PIN" },
+                        value: input(), language: Language::English, limit: 8, keys: Keys::Pin,
+                        on_change: move |value| input.set(value) }
                     button { class: "primary", r#type: "submit", "Continue" }
                 }
             } else {
                 button { class: "primary", onclick: move |_| manage.set(true), "Manage activities" }
-                FocusControls {}
+                FocusButton { controls: focus_controls, has_pin: true, language: Language::English }
                 Calibration { scale, measured, on_save: save_calibration }
                 h2 { "Writing review" }
                 p { "Due reviews: {review_count}" }
@@ -93,34 +95,6 @@ pub fn Parent(
                     }
                 }
             }
-            p { role: "status", "{error}" }
-        }
-    }
-}
-
-#[component]
-fn FocusControls() -> Element {
-    let mut focus = use_signal(|| platform::focus().ok());
-    let mut error = use_signal(String::new);
-    use_future(move || async move {
-        let mut timer = document::eval("do { await new Promise(resolve => setTimeout(resolve, 1000)); if (document.querySelector('[data-focus-controls]')) dioxus.send(true); } while (document.querySelector('[data-focus-controls]'));");
-        while timer.recv::<bool>().await.is_ok() {
-            let current = platform::focus().ok();
-            if *focus.peek() != current {
-                focus.set(current);
-            }
-        }
-    });
-    let mode = focus().map(platform::Focus::label).unwrap_or("Unavailable");
-    rsx! {
-        section { "data-focus-controls": "",
-                h2 { "Focus Mode · {mode}" }
-                p { "On a shared tablet, enable screen pinning in Android settings first. Android shows a confirmation and allows system unpinning. A managed tablet uses its administrator’s allowlist for enforced lock." }
-                button { onclick: move |_| {
-                    error.set(platform::set_focus(focus() == Some(platform::Focus::Off)).err().unwrap_or_default());
-                }, disabled: focus().is_none(),
-                    if focus() == Some(platform::Focus::Off) { "Start Focus Mode" } else { "Exit Focus Mode" }
-                }
             p { role: "status", "{error}" }
         }
     }
@@ -159,14 +133,12 @@ fn Calibration(
                 }
             }
             div { class: "actions",
-                label { "Measured width (mm)"
-                    input { r#type: "number", min: "0.1", step: "0.1", inputmode: "decimal", value: "{width}",
-                        oninput: move |event| { width.set(event.value()); adjusted.set(false); status.set(String::new()); } }
-                }
-                label { "Measured height (mm)"
-                    input { r#type: "number", min: "0.1", step: "0.1", inputmode: "decimal", value: "{height}",
-                        oninput: move |event| { height.set(event.value()); adjusted.set(false); status.set(String::new()); } }
-                }
+                NumericField { label: "Measured width (mm)", value: width(), language: Language::English,
+                    limit: 12, keys: Keys::Decimal,
+                    on_change: move |value| { width.set(value); adjusted.set(false); status.set(String::new()); } }
+                NumericField { label: "Measured height (mm)", value: height(), language: Language::English,
+                    limit: 12, keys: Keys::Decimal,
+                    on_change: move |value| { height.set(value); adjusted.set(false); status.set(String::new()); } }
             }
             div { class: "actions",
                 button { onclick: move |_| {

@@ -2,13 +2,19 @@ mod aba;
 mod activity;
 mod authoring;
 mod content;
+mod curriculum;
+mod focus;
 mod language;
+mod keypad;
 mod math_help;
 mod parent;
 mod platform;
 mod progress;
 mod state;
 mod writing;
+mod worksheets;
+mod rough_sheet;
+mod tracing_practice;
 
 use activity::Activity;
 use content::{CustomCatalog, Kind, PracticeSkill, Topic};
@@ -18,6 +24,15 @@ use progress::{Outcome, Step};
 use state::{Session, State};
 use std::path::PathBuf;
 use writing::PaperScale;
+
+fn handwriting_font() -> &'static str {
+    static FONT: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+        use base64::{engine::general_purpose::STANDARD, Engine as _};
+        let bytes = include_bytes!("../assets/PatrickHand-Regular.ttf");
+        format!("@font-face {{ font-family: 'Patrick Hand'; src: url(data:font/ttf;base64,{}) format('truetype'); font-display: swap; }}", STANDARD.encode(bytes))
+    });
+    &FONT
+}
 
 fn main() {
     dioxus::launch(App);
@@ -29,6 +44,11 @@ enum Page {
     Aba,
     Subject,
     Group,
+    Trace,
+    DailyRecall,
+    RoughSheet,
+    TracingPractice,
+    Worksheets,
     Generated,
     Session,
     Break,
@@ -64,9 +84,22 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
     let mut subject_id = use_signal(|| content::BUNDLED[0].id.clone());
     let mut grade = use_signal(|| 2u8);
     let mut group_id = use_signal(String::new);
+    let mut jump = use_signal(|| None::<(String, usize)>);
     let mut active = use_signal(|| None::<(String, bool)>);
     let mut save_error = use_signal(|| false);
     use_effect(platform::landscape);
+    let focus_controls = focus::Controls::use_controls();
+    let pin_path = path.clone();
+    let save_pin = use_callback(move |pin: state::Pin| {
+        let mut next = data.peek().clone();
+        if next.pin.is_none() {
+            next.pin = Some(pin);
+            state::save(&pin_path, &next).map_err(|error| error.to_string())?;
+            data.set(next);
+        }
+        Ok(())
+    });
+    let local_folder = path.with_file_name("learner-work");
 
     let learner_path = path.clone();
     let commit = use_callback(move |next: State| {
@@ -123,6 +156,8 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
         .find(|item| item.id == selected)
         .unwrap_or(&content::BUNDLED[0]);
     let math_selected = subject.id == "math";
+    let chapters = matches!(subject.id.as_str(), "hi" | "en");
+    let handwriting = subject.id == "en";
     let aba_selected = page() == Page::Aba;
     let aba_language = snapshot.aba_language.unwrap_or(Language::English);
     let aba_name = aba_language.text("एबीए सीखें", "ABA Learning");
@@ -154,7 +189,7 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
         Language::English => format!("Back to {subject_name}"),
     };
     let stars = snapshot.finished.len();
-    let topics: Vec<_> = snapshot
+    let mut topics: Vec<_> = snapshot
         .catalog
         .topics(subject)
         .map(|topic| {
@@ -165,14 +200,13 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
             }
         })
         .collect();
+    topics.sort_by_key(|topic| curriculum::order(&subject.id, topic));
     let grades: std::collections::BTreeSet<_> = topics.iter().map(|topic| topic.grade).collect();
     let mut groups = Vec::new();
     for topic in topics.iter().filter(|topic| topic.grade == grade()) {
-        if !groups
-            .iter()
-            .any(|group: &&content::Group| group.id == topic.group.id)
-        {
-            groups.push(&topic.group);
+        let (id, title) = curriculum::chapter(&subject.id, topic);
+        if !groups.iter().any(|(existing, _, _, _)| *existing == id) {
+            groups.push((id, title, topic.group.guidance.as_str(), topic.group.separate_page));
         }
     }
     let mut due: Vec<_> = topics
@@ -187,7 +221,15 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
         .collect();
     due.sort_by_key(|(day, _)| *day);
     due.truncate(2);
-    let group = groups.iter().find(|group| group.id == group_id());
+    let group = groups.iter().find(|(id, _, _, _)| *id == group_id());
+    let daily_key = format!("{}/{}", subject.id, grade());
+    let today = state::india_date();
+    let today_label = today.to_string();
+    let daily = snapshot.daily_recall.get(&daily_key).filter(|round| round.date == today_label);
+    let has_completed_topic = topics.iter().any(|topic| {
+        topic.grade == grade() && snapshot.finished.contains(&format!("{}/{}", subject.id, topic.progress_id()))
+    });
+    let daily_label = language.text("रोज़ की दोहराई", "Daily recall");
     let active_step = active().and_then(|(id, review)| {
         let session = snapshot
             .sessions
@@ -205,7 +247,7 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
     let body = match page() {
         Page::Subjects => rsx! {
             h1 { "अपना विषय चुनो" }
-            div { class: "cards",
+            div { class: "subject-cards",
                 for item in snapshot.catalog.subjects() {
                     {
                         let id = item.id.clone();
@@ -218,26 +260,49 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                             (item.name.as_str(), "hi")
                         };
                         rsx! {
-                            button { key: "{id}", lang, disabled: default_grade.is_none(),
+                            button { key: "{id}", class: "subject-card", "data-subject": "{id}", lang, disabled: default_grade.is_none(),
                                 onclick: move |_| {
                                     subject_id.set(id.clone());
                                     if let Some(level) = default_grade { grade.set(level); }
                                     page.set(Page::Subject);
                                 },
-                                "{name}"
+                                span { class: "subject-icon", aria_hidden: "true", {subject_icon(&id)} }
+                                span { "{name}" }
                                 if default_grade.is_none() { small { "जल्द आएगा" } }
                             }
                         }
                     }
                 }
-                button { lang: aba_language.code(), onclick: move |_| page.set(Page::Aba), "{aba_name}" }
+                button { class: "subject-card", lang: aba_language.code(), onclick: move |_| page.set(Page::Aba),
+                    span { class: "subject-icon", aria_hidden: "true", "◇" }
+                    span { "{aba_name}" }
+                }
             }
         },
         Page::Aba => rsx! {
             aba::AbaLearning { language, name: aba_name, data, commit }
         },
         Page::Subject => rsx! {
-            h1 { "{subject_name}" }
+            h1 { class: "subject-heading",
+                span { class: "subject-icon", aria_hidden: "true", {subject_icon(&selected)} }
+                "{subject_name}"
+            }
+            if matches!(selected.as_str(), "hi" | "math" | "en") {
+                div { class: "subject-cards subject-tools",
+                    button { class: "subject-card", onclick: move |_| page.set(Page::RoughSheet),
+                        span { class: "subject-icon", aria_hidden: "true", "✎" }
+                        {language.text("रफ़ कॉपी", "Rough Sheet")}
+                    }
+                    button { class: "subject-card", onclick: move |_| page.set(Page::TracingPractice),
+                        span { class: "subject-icon", aria_hidden: "true", "⋯" }
+                        {language.text("बिंदियों पर लिखो", "Tracing Practice")}
+                    }
+                    button { class: "subject-card", onclick: move |_| page.set(Page::Worksheets),
+                        span { class: "subject-icon", aria_hidden: "true", "▤" }
+                        {language.text("कार्यपत्रक", "Worksheets")}
+                    }
+                }
+            }
             div { class: "cards", aria_label: language.text("कक्षा चुनो", "Choose a class"),
                 for level in grades {
                     button { key: "{level}", class: if grade() == level { "primary" } else { "" },
@@ -247,6 +312,35 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
             if math_selected {
                 button { class: "primary", onclick: move |_| page.set(Page::Generated), "{new_practice_label}" }
             }
+            if chapters || math_selected {
+                {
+                    let daily_key = daily_key.clone();
+                    let id = subject.id.clone();
+                    let selected_grade = grade();
+                    rsx! { button { class: "primary", onclick: move |_| {
+                        let mut next = data.peek().clone();
+                        let date = state::india_date();
+                        if has_completed_topic && !next.daily_recall.get(&daily_key).is_some_and(|round| round.date == date.to_string()) {
+                            let subject = next.catalog.subjects().find(|subject| subject.id == id);
+                            if let Some(subject) = subject {
+                                let mut topics = next.catalog.topics(subject).filter(|topic| topic.grade == selected_grade).collect::<Vec<_>>();
+                                topics.sort_by_key(|topic| curriculum::order(&id, topic));
+                                let round = state::DailyRecall::new(&next, &id, &topics, date);
+                                next.daily_recall.insert(daily_key.clone(), round);
+                                commit.call(next);
+                            }
+                        }
+                        page.set(Page::DailyRecall);
+                    }, "{daily_label}"
+                        if let Some(round) = daily {
+                            small {
+                                if round.position == round.questions.len() { {language.text("आज पूरा हुआ", "Done today")} }
+                                else { {language.text("जारी रखो", "Resume")} }
+                            }
+                        }
+                    } }
+                }
+            }
             if !due.is_empty() {
                 h2 { "{recall_label}" }
                 div { class: "cards",
@@ -255,20 +349,30 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                     }
                 }
             }
-            for group in groups.iter().copied() {
-                if group.separate_page {
+            if chapters {
+                h2 { {language.text("अध्याय", "Chapters")} }
+                if grade() == 2 {
+                    button { class: "quiet", onclick: move |_| {
+                        grade.set(1);
+                        group_id.set(if handwriting { "alphabet" } else { "vowels" }.into());
+                        page.set(Page::Group);
+                    }, {language.text("अक्षर और मात्राएँ · कक्षा 1", "Letter practice · Class 1")} }
+                }
+            }
+            for (id, title, guidance, separate) in groups.iter().copied() {
+                if chapters || separate {
                     {
-                        let id = group.id.clone();
+                        let id = id.to_owned();
                         rsx! { button { key: "{id}", class: "primary", onclick: move |_| {
                             group_id.set(id.clone()); page.set(Page::Group);
-                        }, "{group.title}" } }
+                        }, "{title}" } }
                     }
                 } else {
-                    section { key: "{group.id}",
-                        h2 { "{group.title}" }
-                        if !group.guidance.is_empty() { p { "{group.guidance}" } }
+                    section { key: "{id}",
+                        h2 { "{title}" }
+                        if !guidance.is_empty() { p { "{guidance}" } }
                         div { class: "cards",
-                            for topic in topics.iter().filter(|topic| topic.grade == grade() && topic.group.id == group.id) {
+                            for topic in topics.iter().filter(|topic| topic.grade == grade() && curriculum::chapter(&subject.id, topic).0 == id) {
                                 { topic_button(&snapshot, &subject.id, topic, false, start, language) }
                             }
                         }
@@ -277,14 +381,110 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
             }
         },
         Page::Group => rsx! {
-            if let Some(group) = group {
-                h1 { "{group.title}" }
-                p { "{group.guidance}" }
-                div { class: "cards",
-                    for topic in topics.iter().filter(|topic| topic.grade == grade() && topic.group.id == group.id) {
-                        { topic_button(&snapshot, &subject.id, topic, false, start, language) }
+            if let Some(&(id, title, guidance, _)) = group {
+                h1 { "{title}" }
+                if !chapters && !guidance.is_empty() { p { "{guidance}" } }
+                if subject.id == "hi" && id == "matras" {
+                    if topics.iter().any(|topic| topic.id == "barakhadi-1") {
+                        div { class: "letter-picker", aria_label: "मात्रा चुनो",
+                            for (index, mark) in ["", "◌ा", "◌ि", "◌ी", "◌ु", "◌ू", "◌े", "◌ै", "◌ो", "◌ौ", "◌ं", "◌ः"].into_iter().enumerate().skip(1) {
+                                button { key: "{mark}", onclick: move |_| {
+                                    jump.set(Some(("barakhadi-1".into(), index)));
+                                    page.set(Page::Trace);
+                                }, "{mark}" }
+                            }
+                            button { onclick: move |_| {
+                                jump.set(Some(("ri-one".into(), 0)));
+                                page.set(Page::Trace);
+                            }, "◌ृ" }
+                        }
                     }
                 }
+                for topic in topics.iter().filter(|topic| topic.grade == grade() && curriculum::chapter(&subject.id, topic).0 == id) {
+                    section { key: "{topic.id}", class: "chapter-topic",
+                        { topic_button(&snapshot, &subject.id, topic, false, start, language) }
+                        div { class: "letter-picker",
+                            for index in 0..topic.exercises.len() {
+                                if let Some(model) = curriculum::letter_model(&subject.id, topic, index) {
+                                    {
+                                        let topic_id = topic.progress_id();
+                                        rsx! { button { key: "{topic.exercises[index].id}",
+                                            class: if handwriting { "handwriting-letter" } else { "" },
+                                            onclick: move |_| { jump.set(Some((topic_id.clone(), index))); page.set(Page::Trace); },
+                                            "{model}"
+                                        } }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        Page::Trace => {
+            if let Some(((id, index), topic)) = jump().and_then(|target| {
+                topics.iter().find(|topic| topic.progress_id() == target.0).map(|topic| (target, (*topic).clone()))
+            }) {
+                let subject = subject.id.clone();
+                let step = Step { subject: &subject, topic: &topic, review: false, index };
+                let title = topic.title.clone();
+                let ink = step.ink(&snapshot);
+                let kind = step.exercise().cloned();
+                let scale = PaperScale::from_saved(snapshot.scale, snapshot.vertical_scale);
+                rsx! {
+                    h1 { "{title}" }
+                    if let Some(kind) = kind {
+                        Activity { key: "jump-{id}-{index}", kind, initial: ink, scale, language, handwriting,
+                            on_input: move |input| {
+                                let mut next = data.peek().clone();
+                                let step = Step { subject: &subject, topic: &topic, review: false, index };
+                                if let Some(done) = step.trace_only(&mut next, input, &state::sample_date()) {
+                                    commit.call(next);
+                                    if done { page.set(Page::Group); }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                rsx! { p { {language.text("अक्षर चुनो।", "Choose a letter.")} } }
+            }
+        }
+        Page::DailyRecall => rsx! {
+            h1 { "{daily_label}" }
+            if let Some(round) = daily {
+                if let Some(item) = round.questions.get(round.position) {
+                    {
+                        let position = round.position;
+                        let date = round.date.clone();
+                        let (title, question) = if math_selected && language == Language::English {
+                            item.english.as_ref().map(|(title, question)| (title, question))
+                                .unwrap_or((&item.title, &item.question))
+                        } else { (&item.title, &item.question) };
+                        let current = position + 1;
+                        let total = round.questions.len();
+                        rsx! { section { key: "daily-{date}-{position}",
+                            p { class: "step", "{title} · {current} / {total}" }
+                            Activity { kind: Kind::Choice(question.clone()),
+                                initial: Vec::new(), scale: PaperScale::from_saved(snapshot.scale, snapshot.vertical_scale),
+                                recall: true, language, handwriting, on_input: move |input| {
+                                    if !matches!(input, progress::Input::Answer(_)) { return; }
+                                    let mut next = data.peek().clone();
+                                    if let Some(round) = next.daily_recall.get_mut(&daily_key) {
+                                        if round.date == date && round.position == position {
+                                            round.position += 1;
+                                            commit.call(next);
+                                        }
+                                    }
+                                }
+                            }
+                        } }
+                    }
+                } else {
+                    p { {language.text("आज की दोहराई पूरी हुई।", "Daily recall complete for today.")} }
+                }
+            } else {
+                p { {language.text("रोज़ की दोहराई शुरू करने के लिए पहले इस कक्षा का एक विषय पूरा करो।", "Finish a topic in this class to unlock daily recall.")} }
             }
         },
         Page::Generated => rsx! {
@@ -342,7 +542,7 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                   section { key: "{activity_key}",
                     h1 { "{title}" }
                     if recall { h2 { "{recall_label}" } } else { p { class: "step", "{practice_label} {index + 1} / {total}" } }
-                    Activity { kind, initial: ink, helper_draft, scale, recall, language,
+                    Activity { kind, initial: ink, helper_draft, scale, recall, language, handwriting,
                         ruled_paper: content::Paper::for_subject(&subject), revision_source,
                         on_input: move |input| {
                             let mut next = data.peek().clone();
@@ -377,19 +577,39 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                 button { class: "primary", onclick: move |_| page.set(Page::Subject), "{back_to_subject}" }
             }
         },
-        Page::Parent(_) => rsx! { parent::Parent { data, commit, publish, save_calibration } },
+        Page::RoughSheet => rsx! {
+            rough_sheet::RoughSheet { key: "{selected}", path: local_folder.join(format!("rough-{selected}.json")),
+                paper: if math_selected { content::Paper::Digit } else { content::Paper::for_subject(&selected) },
+                language, scale: PaperScale::from_saved(snapshot.scale, snapshot.vertical_scale) }
+        },
+        Page::TracingPractice => rsx! {
+            tracing_practice::TracingPractice { key: "{selected}-{grade}", subject: selected.clone(),
+                grade: grade(), directory: local_folder.clone(), language,
+                scale: PaperScale::from_saved(snapshot.scale, snapshot.vertical_scale) }
+        },
+        Page::Worksheets => rsx! {
+            worksheets::Worksheets { key: "{selected}-{grade}", directory: local_folder.clone(),
+                subject: selected.clone(), grade: grade(), language,
+                scale: PaperScale::from_saved(snapshot.scale, snapshot.vertical_scale) }
+        },
+        Page::Parent(_) => rsx! { parent::Parent { data, publish, save_calibration, save_pin, focus_controls } },
     };
+    let pin = snapshot.pin.clone();
+    let accent = if page() == Page::Subjects { "" } else { selected.as_str() };
     drop(snapshot);
 
     rsx! {
         document::Title { "Saksham" }
         style { {include_str!("style.css")} }
-        div { class: "app", lang: language.code(),
+        style { {handwriting_font()} }
+        div { class: "app", "data-subject": "{accent}", lang: language.code(),
             header {
                 if matches!(page(), Page::Subject | Page::Aba) {
                     button { class: "quiet", onclick: move |_| page.set(Page::Subjects), {language.text("‹ विषय", "‹ Subjects")} }
                 } else if page() == Page::Parent(true) {
                     button { class: "quiet", onclick: move |_| page.set(Page::Aba), "‹ {aba_name}" }
+                } else if page() == Page::Trace {
+                    button { class: "quiet", onclick: move |_| page.set(Page::Group), {language.text("‹ अध्याय", "‹ Chapter")} }
                 } else if page() != Page::Subjects {
                     button { class: "quiet", onclick: move |_| page.set(Page::Subject), "⌂ {subject_name}" }
                 }
@@ -407,17 +627,28 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                     }, "{language_label}" }
                 }
                 if !matches!(page(), Page::Parent(_)) {
+                    focus::FocusButton { controls: focus_controls, has_pin: pin.is_some(), language }
                     button { class: "quiet", onclick: move |_| page.set(Page::Parent(page() == Page::Aba)), {language.text("बड़ों के लिए", "For parents")} }
                 }
             }
-            main {
+            main { class: if page() == Page::RoughSheet { "rough-notebook-main" } else { "" },
                 if save_error() {
                     p { role: "alert", "अभ्यास सहेजा नहीं जा सका। · Progress could not be saved." }
                     button { onclick: move |_| { let next = data.peek().clone(); commit.call(next); }, {language.text("फिर सहेजें", "Try saving again")} }
                 }
+                focus::FocusPrompt { controls: focus_controls, pin, save_pin, language }
                 {body}
             }
         }
+    }
+}
+
+fn subject_icon(subject: &str) -> &'static str {
+    match subject {
+        "hi" => "क्ष",
+        "math" => "1 2 3",
+        "en" => "ABC",
+        _ => "◇",
     }
 }
 

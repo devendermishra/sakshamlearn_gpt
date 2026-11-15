@@ -7,6 +7,26 @@ use crate::{
 };
 
 #[component]
+pub fn AnswerFeedback(correct: bool, text: String) -> Element {
+    rsx! {
+        div { class: if correct { "answer-feedback correct" } else { "answer-feedback incorrect" }, role: "status",
+            span { class: "answer-symbol", aria_hidden: "true", if correct { "✓" } else { "✕" } }
+            span { "{text}" }
+        }
+    }
+}
+
+#[component]
+fn CorrectAnswer(language: Language, on_advance: EventHandler<()>) -> Element {
+    rsx! {
+        AnswerFeedback { correct: true, text: language.text("सही!", "Correct!") }
+        button { class: "primary", onclick: move |_| on_advance.call(()),
+            {language.text("आगे", "Next")}
+        }
+    }
+}
+
+#[component]
 fn SolveActivity(
     prompt: String,
     solution: String,
@@ -50,18 +70,22 @@ fn SolveActivity(
             InkPad { key: "{language.code()}", id: "checked-math-ink", model: "", initial: work.clone(),
                 scale, lines, paper, notebook: equation, language, readonly: true }
             if legacy || correct().is_some() {
-                if correct() == Some(true) {
-                    p { role: "status", {language.text("सही!", "Correct!")} }
-                }
                 h3 { {language.text("सही हल", "Worked solution")} }
                 p { class: "passage", "{solution}" }
-                button { class: "primary", onclick: move |_| {
-                    let input = match correct() {
-                        Some(correct) => Input::SubmitSolution { ink: work.clone(), correct },
-                        None => Input::Submit(work.clone()),
-                    };
-                    on_input.call(input);
-                }, {language.text("आगे", "Next")} }
+                if correct() == Some(true) {
+                    CorrectAnswer { language, on_advance: move |_| {
+                        on_input.call(Input::SubmitSolution { ink: work.clone(), correct: true });
+                    } }
+                } else {
+                    if correct() == Some(false) {
+                        AnswerFeedback { correct: false, text: language.text("फिर कोशिश करो।", "Try again next time.") }
+                    }
+                    button { class: "primary", onclick: move |_| {
+                        let input = if legacy { Input::Submit(work.clone()) }
+                            else { Input::SubmitSolution { ink: work.clone(), correct: false } };
+                        on_input.call(input);
+                    }, {language.text("आगे", "Next")} }
+                }
             } else {
                 NumberCheck { label: answer_label, expected: answer, language,
                     on_correct: move |_| correct.set(Some(true)), on_wrong: move |_| tried.set(true) }
@@ -104,6 +128,7 @@ fn Choice(
 ) -> Element {
     let mut show = use_signal(|| !recall);
     let mut missed = use_signal(|| false);
+    let mut wrong = use_signal(|| false);
     let mut correct = use_signal(|| false);
     let q = question;
     let answer_label = language.text("सही जवाब है:", "The correct answer is");
@@ -118,15 +143,24 @@ fn Choice(
         div { class: "cards answers",
             for (index, option) in q.options.iter().enumerate() {
                 button { key: "{index}", disabled: correct(), onclick: move |_| {
-                    if index == q.answer { correct.set(true); } else { missed.set(true); }
+                    if !correct() {
+                        if index == q.answer { correct.set(true); }
+                        else { missed.set(true); wrong.set(true); }
+                    }
                 }, "{option}" }
             }
         }
         if correct() {
-            p { role: "status", {language.text("सही!", "Correct!")} }
-            button { class: "primary", onclick: move |_| on_done.call(missed()), {language.text("आगे", "Next")} }
+            CorrectAnswer { language, on_advance: move |_| on_done.call(missed()) }
         } else if missed() {
-            p { role: "status", "{answer_label} {q.options[q.answer]}" }
+            if wrong() {
+                AnswerFeedback { correct: false, text: language.text(
+                    "फिर कोशिश करो। सवाल और विकल्प फिर देखो।",
+                    "Try again. Look at the question and choices once more.",
+                ) }
+            } else {
+                p { role: "status", "{answer_label} {q.options[q.answer]}" }
+            }
             button { class: "quiet", onclick: move |_| on_done.call(true), {language.text("आगे", "Next")} }
         }
         }
@@ -190,18 +224,18 @@ fn TalkActivity(
     rsx! {
         p { class: "picture-cue", "{picture}" }
         h2 { "{prompt}" }
-        details { summary { {language.text("बड़ों के लिए बातचीत का संकेत", "Conversation cue for adults")} } p { "{adult}" } }
+        details { summary { {language.text("बड़ों के लिए बातचीत का संकेत", "Conversation cue for adults")} } p { class: "learning-text", "{adult}" } }
         if write() {
             InkPad { key: "{language.code()}", language, id: "talk-ink", model: "", initial, scale, paper, on_ink, on_done: on_written }
         } else {
             div { class: "cards",
                 for starter in starters {
                     button { key: "{starter}", aria_pressed: picked().as_deref() == Some(starter.as_str()),
-                        onclick: move |_| picked.set(Some(starter.clone())), "{starter}" }
+                        class: "learning-text", onclick: move |_| picked.set(Some(starter.clone())), "{starter}" }
                 }
             }
             if let Some(response) = picked() {
-                p { role: "status", "{response}" }
+                p { class: "learning-text", role: "status", "{response}" }
             }
             button { class: "quiet", onclick: move |_| write.set(true), {language.text("लिखकर बताओ", "Write your answer")} }
             button { class: "primary", onclick: move |_| on_done.call(()), {language.text("बात हो गई", "Done talking")} }
@@ -246,13 +280,14 @@ pub fn Activity(
     #[props(default)] helper_draft: HelperDraft,
     #[props(default)] language: Language,
     #[props(default)] ruled_paper: Paper,
+    #[props(default)] handwriting: bool,
     #[props(default)] revision_source: Option<(Ink, usize)>,
     on_input: EventHandler<Input>,
 ) -> Element {
     let on_done = move |missed| on_input.call(Input::Answer(missed));
     let on_ink = move |ink| on_input.call(Input::Draft(ink));
     let on_written = move |ink| on_input.call(Input::Submit(ink));
-    match kind {
+    let content = match kind {
         Kind::Choice(question) => {
             rsx! { Choice { passage: "", question, recall, language, on_done } }
         }
@@ -297,7 +332,7 @@ pub fn Activity(
             paper,
         } => rsx! {
             h2 { {language.text("बिंदियों पर लिखो, फिर खुद लिखो", "Trace the dots, then write on your own")} }
-            if !guidance.is_empty() { details { summary { {language.text("लिखने का तरीका", "How to write")} } p { "{guidance}" } } }
+            if !guidance.is_empty() { details { summary { {language.text("लिखने का तरीका", "How to write")} } p { class: "learning-text", "{guidance}" } } }
             {rsx! {
                 InkPad { key: "{language.code()}", language, id: "trace-ink", model, initial, scale, paper, on_ink, on_done: on_written }
             }}
@@ -305,7 +340,7 @@ pub fn Activity(
         Kind::Compose(prompt, lines, dictation) => rsx! {
             h2 { "{prompt}" }
             if let Some(words) = dictation {
-                details { summary { {language.text("बड़े बोलकर सुनाएँ", "An adult can read this aloud")} } p { "{words}" } }
+                details { summary { {language.text("बड़े बोलकर सुनाएँ", "An adult can read this aloud")} } p { class: "learning-text", "{words}" } }
             }
             {rsx! {
                 InkPad { key: "{language.code()}", language, id: "compose-ink", model: "", initial, scale, paper: ruled_paper, lines, on_ink, on_done: on_written }
@@ -333,5 +368,6 @@ pub fn Activity(
         } => rsx! {
             SolveActivity { prompt, solution, answer, helper, notebook, lines, initial, helper_draft, scale, language, on_ink, on_input }
         },
-    }
+    };
+    rsx! { div { class: if handwriting { "handwriting-content" } else { "" }, {content} } }
 }

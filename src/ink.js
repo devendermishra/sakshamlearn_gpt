@@ -1,10 +1,21 @@
-const {id, model, initial, readonly, square, englishPaper, digitWidth = 0, blankColumns = 1, noteColumns = 0, lines, allowMouse, english} = config;
+const {id, model, initial, readonly, square, plain, englishPaper, digitWidth = 0, equationWidth = 0, lineTrace = false, fullSheet = false, blankColumns = 1, noteColumns = 0, lines, allowMouse, english} = config;
 const container = document.getElementById(id);
 if (!container) return;
+if (englishPaper && model) {
+    try {
+        await document.fonts.load('144px "Patrick Hand"', model);
+    } catch (error) {
+        console.warn("Could not load the handwriting font", error);
+    }
+    if (!container.isConnected) return;
+}
 
 const traceColumns = englishPaper ? 3 : 6;
-const columns = model ? (digitWidth ? 2 * digitWidth : traceColumns) : blankColumns;
-const count = noteColumns + columns * (model ? 2 : lines);
+const symbols = Array.from(model);
+const symbolWidth = equationWidth || digitWidth;
+const columns = model ? (equationWidth || (digitWidth ? 2 * digitWidth : lineTrace ? 1 : traceColumns)) : blankColumns;
+const count = fullSheet ? 1 : noteColumns + columns * (model ? 2 : lines);
+const modelCell = model && !symbolWidth && !lineTrace;
 const grid = container.querySelector(".ink-grid");
 const notes = container.querySelector(".regroup-grid");
 const ink = Array.from({length: count}, (_, i) => initial[i] ?? []);
@@ -13,13 +24,31 @@ const message = container.querySelector("[role=status]");
 let active = null;
 let latest = -1;
 let submitted = false;
+let frame = 0;
+let finish;
+const listeners = new AbortController();
+const lifetime = readonly ? null : new Promise(resolve => { finish = resolve; });
+
+function scheduleDraw(index) {
+    if (frame) return;
+    frame = requestAnimationFrame(() => {
+        frame = 0;
+        draw(index);
+    });
+}
 const history = [];
 const text = (hindi, translation) => english ? translation : hindi;
 
 function paper(index) {
     const canvas = document.createElement("canvas");
-    canvas.width = englishPaper ? (model ? 540 : 1620) : square ? 216 : model ? 240 : 720;
-    canvas.height = 216;
+    canvas.width = plain ? 1200 : englishPaper ? (model ? 540 : 1620) : square ? 216 : model ? 240 : 720;
+    canvas.height = plain ? 600 : 216;
+    if (lineTrace) canvas.width = englishPaper ? 1958 : 1305;
+    if (fullSheet) {
+        const {width, height} = grid.getBoundingClientRect();
+        canvas.width = Math.max(1, Math.min(1800, Math.round(width * 2)));
+        canvas.height = Math.max(1, Math.min(1800, Math.round(height * 2)));
+    }
     canvas.dataset.cell = index;
     if (index < noteColumns) {
         const label = noteColumns === 1
@@ -28,7 +57,7 @@ function paper(index) {
         canvas.setAttribute("aria-label", label);
         notes.append(canvas);
     } else {
-        canvas.setAttribute("aria-label", index === 0 && model && !digitWidth
+        canvas.setAttribute("aria-label", index === 0 && modelCell
             ? text("नमूना", "Example")
             : text("लिखने की जगह", "Writing space"));
         grid.append(canvas);
@@ -66,7 +95,7 @@ function drawEnglishModel(ctx, text) {
     source.width = width;
     source.height = height;
     const modelContext = source.getContext("2d");
-    modelContext.font = "144px Arial, sans-serif";
+    modelContext.font = '144px "Patrick Hand", Arial, sans-serif';
     modelContext.textAlign = "center";
     modelContext.textBaseline = "alphabetic";
     modelContext.fillStyle = ctx.fillStyle;
@@ -110,7 +139,7 @@ function draw(index) {
     const canvas = cells[index];
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (model && !digitWidth && index === 0) glyph(ctx, model, "model");
+    if (modelCell && index === 0) glyph(ctx, model, "model");
     if (isTraceCell(index)) {
         const mask = template(canvas, index);
         ctx.fillStyle = "#84918b";
@@ -124,12 +153,12 @@ function draw(index) {
 }
 
 function isTraceCell(index) {
-    return !!model && index >= (digitWidth ? 0 : 1) && index < columns;
+    return !!model && index >= (modelCell ? 1 : 0) && index < columns;
 }
 
 const references = new Map();
 function template(canvas, index) {
-    const character = digitWidth ? model[index % digitWidth] : model;
+    const character = symbolWidth ? symbols[index % symbolWidth] : model;
     if (!references.has(character)) {
         references.set(character, raster(canvas, ctx => glyph(ctx, character, "model")));
     }
@@ -161,7 +190,7 @@ function point(event, canvas) {
 }
 
 function bind(canvas, index) {
-    if (readonly || (model && !digitWidth && (index === 0 || index === columns))) return;
+    if (readonly || (modelCell && (index === 0 || index === columns))) return;
     canvas.addEventListener("pointerdown", event => {
         const accepted = event.pointerType === "pen" || (allowMouse && event.pointerType === "mouse");
         if (submitted || active || !accepted || event.button !== 0) return;
@@ -169,8 +198,8 @@ function bind(canvas, index) {
         canvas.setPointerCapture(event.pointerId);
         ink[index].push([point(event, canvas)]);
         active = {id: event.pointerId, index};
-        draw(index);
-    });
+        scheduleDraw(index);
+    }, {signal: listeners.signal});
     canvas.addEventListener("pointermove", event => {
         if (active?.id !== event.pointerId) return;
         const stroke = ink[index].at(-1);
@@ -178,34 +207,36 @@ function bind(canvas, index) {
         for (const sample of events.length ? events : [event]) {
             if (stroke.length < 4096) stroke.push(point(sample, canvas));
         }
-        draw(index);
-    });
+        scheduleDraw(index);
+    }, {signal: listeners.signal});
     function end(event) {
         if (active?.id !== event.pointerId) return;
         if (event.type === "pointerup" && ink[index].at(-1).length < 4096) {
             ink[index].at(-1).push(point(event, canvas));
         }
         active = null;
+        cancelAnimationFrame(frame);
+        frame = 0;
         latest = index;
         history.push(index);
         draw(index);
         update();
     }
-    for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) canvas.addEventListener(type, end);
+    for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) canvas.addEventListener(type, end, {signal: listeners.signal});
 }
 
 for (let i = 0; i < count; i++) {
     cells.push(paper(i));
     for (const _ of ink[i]) history.push(i);
-    if (model && !digitWidth && i === columns) cells[i].classList.add("spacer");
-    if (square && model && !digitWidth && i === 0) cells[i].hidden = true;
+    if (modelCell && i === columns) cells[i].classList.add("spacer");
+    if (square && modelCell && i === 0) cells[i].hidden = true;
     draw(i);
     bind(cells[i], i);
 }
 
 function hasCompleteCopy(rowStart) {
-    for (let start = rowStart; start < rowStart + columns; start += digitWidth) {
-        if (ink.slice(start, start + digitWidth).every(cell => cell.length)) return true;
+    for (let start = rowStart; start < rowStart + columns; start += symbolWidth) {
+        if (ink.slice(start, start + symbolWidth).every(cell => cell.length)) return true;
     }
     return false;
 }
@@ -241,16 +272,37 @@ if (!readonly) {
             message.textContent = text("हर पंक्ति पर लिखो।", "Write on each line before finishing.");
             return;
         }
-        if (digitWidth && (!hasCompleteCopy(0) || !hasCompleteCopy(columns))) {
+        if (symbolWidth && (!hasCompleteCopy(0) || !hasCompleteCopy(columns))) {
             message.textContent = text("ऊपर और नीचे कम से कम एक बार पूरी संख्या लिखो।", "Write the whole number at least once on each row.");
             return;
         }
-        if (model && !digitWidth && (!ink.slice(1, columns).some(cell => cell.length) ||
-            !ink.slice(columns + 1).some(cell => cell.length))) {
+        if ((lineTrace && (!ink[0].length || !ink[1].length)) ||
+            (modelCell && (!ink.slice(1, columns).some(cell => cell.length) ||
+                !ink.slice(columns + 1).some(cell => cell.length)))) {
             message.textContent = text("बिंदियों पर और खाली जगह में लिखो।", "Write on the dots and in the blank space.");
             return;
         }
         submitted = true;
         dioxus.send({ink, done: true});
+        finish();
     };
+}
+
+
+if (lifetime) {
+    // Dioxus keeps the message channel open while this promise is pending.
+    // Observe removal instead of polling the DOM on every open writing pad.
+    const observer = new MutationObserver(() => {
+        if (!container.isConnected) finish();
+    });
+    observer.observe(document.body, {childList: true, subtree: true});
+    if (!container.isConnected) finish();
+    await lifetime;
+    observer.disconnect();
+    listeners.abort();
+    cancelAnimationFrame(frame);
+    container.querySelector("[data-undo]").onclick = null;
+    container.querySelector("[data-clear]").onclick = null;
+    const done = container.querySelector("[data-done]");
+    if (done) done.onclick = null;
 }

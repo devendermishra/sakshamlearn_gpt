@@ -13,6 +13,7 @@ const WORK_GRID_COLUMNS: usize = 10;
 const HINDI_BAND_MM: f64 = 8.0;
 // Four rules at 4 mm intervals, with 4 mm between writing rows in the workbook.
 const ENGLISH_ROW_MM: f64 = 16.0;
+const ENGLISH_NOTEBOOK_GAP_MM: f64 = 4.0;
 
 #[derive(Clone, Copy, PartialEq)]
 pub struct PaperScale {
@@ -62,6 +63,8 @@ pub fn InkPad(
     scale: PaperScale,
     #[props(default = 1)] lines: usize,
     #[props(default)] work_columns: Option<usize>,
+    #[props(default)] full_sheet: bool,
+    #[props(default)] single_trace: bool,
     #[props(default)] readonly: bool,
     #[props(default)] paper: Paper,
     #[props(default)] notebook: Option<ArithmeticHelp>,
@@ -70,30 +73,39 @@ pub fn InkPad(
     #[props(default)] on_ink: Option<EventHandler<Ink>>,
     #[props(default)] on_done: Option<EventHandler<Ink>>,
 ) -> Element {
+    let equation_width = if paper == Paper::Digit && single_trace {
+        model.chars().count()
+    } else {
+        0
+    };
     let digit_width = match (paper, model.as_bytes()) {
         (Paper::Digit, [b'0'..=b'9', b'0'..=b'9']) => 2,
         (Paper::Digit, [b'0'..=b'9', b'0'..=b'9', b'0'..=b'9']) => 3,
         _ => 0,
     };
     let tracing = !model.is_empty();
+    let line_trace = tracing && single_trace && paper != Paper::Digit;
     let english_paper = paper == Paper::English;
     let notes = paper.regrouping_cells();
     let blank_columns = match paper {
         Paper::Digit => work_columns.unwrap_or(WORK_GRID_COLUMNS),
         Paper::Notebook | Paper::NotebookCarry | Paper::NotebookBorrow => 2,
-        Paper::Hindi | Paper::English => 1,
+        Paper::Hindi | Paper::English | Paper::Blank => 1,
     };
     let config = serde_json::json!({
         "id": id, "model": model, "initial": initial, "readonly": readonly,
-        "square": !matches!(paper, Paper::Hindi | Paper::English),
+        "square": !matches!(paper, Paper::Hindi | Paper::English | Paper::Blank),
+        "plain": paper == Paper::Blank,
+        "fullSheet": full_sheet, "lineTrace": line_trace, "equationWidth": equation_width,
         "englishPaper": english_paper, "digitWidth": digit_width,
         "blankColumns": blank_columns, "noteColumns": notes, "lines": lines,
         "allowMouse": !cfg!(target_os = "android"), "english": language == Language::English,
     });
     use_effect(move || {
         let script = format!(
-            "const config = {config};\n{}\n{}\nwhile (container && !readonly && !submitted && container.isConnected) await new Promise(resolve => setTimeout(resolve, 250));",
-            include_str!("trace.js"), include_str!("ink.js")
+            "const config = {config};\n{}\n{}",
+            include_str!("trace.js"),
+            include_str!("ink.js")
         );
         let mut eval = document::eval(&script);
         if readonly {
@@ -114,6 +126,9 @@ pub fn InkPad(
         });
     });
     let (cell, height) = match paper {
+        Paper::Hindi if full_sheet => (96.0, HINDI_BAND_MM),
+        Paper::Hindi if line_trace => (145.0, 3.0 * HINDI_BAND_MM),
+        Paper::English if full_sheet || line_trace => (145.0, ENGLISH_ROW_MM),
         Paper::Hindi if model.is_empty() => (96.0, 3.0 * HINDI_BAND_MM),
         Paper::Hindi => (30.0, 3.0 * HINDI_BAND_MM),
         Paper::English if tracing => (40.0, ENGLISH_ROW_MM),
@@ -121,6 +136,8 @@ pub fn InkPad(
         _ => (DIGIT_CELL_MM, DIGIT_CELL_MM),
     };
     let columns = match (paper, tracing) {
+        _ if line_trace => 1,
+        _ if equation_width > 0 => equation_width,
         (Paper::Digit, true) if digit_width > 0 => 2 * digit_width,
         (Paper::Digit, true) => 10,
         (Paper::Hindi, true) => 6,
@@ -128,13 +145,24 @@ pub fn InkPad(
         _ => blank_columns,
     };
     let class = match (paper, tracing) {
-        (Paper::Hindi, true) => "ink ink-hindi ink-hindi-trace",
-        (Paper::Hindi, false) => "ink ink-hindi",
+        (Paper::Hindi, true) if !line_trace => "ink ink-hindi ink-hindi-trace",
+        (Paper::Hindi, _) => "ink ink-hindi",
         (Paper::English, _) => "ink ink-english",
+        (Paper::Blank, _) => "ink ink-blank",
         _ => "ink ink-square",
     };
+    let class = if full_sheet {
+        format!("{class} ink-full-sheet")
+    } else {
+        class.to_owned()
+    };
+    let english_gap = if full_sheet && english_paper {
+        ENGLISH_NOTEBOOK_GAP_MM * scale.vertical
+    } else {
+        0.0
+    };
     let paper_style = format!(
-        "--cell:{}px;--height:{}px;--columns:{columns};--notes:{notes}",
+        "--cell:{}px;--height:{}px;--columns:{columns};--notes:{notes};--rows:{lines};--english-gap:{english_gap}px",
         cell * scale.horizontal,
         height * scale.vertical
     );
@@ -150,6 +178,8 @@ pub fn InkPad(
         section { id: "{id}", class: "{class}", style: "{paper_style}",
             if tracing && matches!(paper, Paper::Hindi | Paper::English) {
                 p { class: "instructions", {language.text("पहली पंक्ति में बिंदियों पर लिखो। दूसरी पंक्ति में खुद लिखो।", "Trace the dots on the first row. Write on your own on the second row.")} }
+            } else if equation_width > 0 {
+                p { class: "instructions", "{two_rows}" }
             } else if digit_width > 0 {
                 p { class: "instructions", "{model_label} {model}{full_stop} {two_rows}" }
             } else if tracing && paper == Paper::Digit {
