@@ -17,6 +17,7 @@ pub type Ink = Vec<Vec<Stroke>>;
 #[serde(default)]
 pub struct State {
     pub catalog: CustomCatalog,
+    pub appearance: crate::appearance::Appearance,
     pub math_language: Language,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub aba_language: Option<Language>,

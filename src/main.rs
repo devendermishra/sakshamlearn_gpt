@@ -1,5 +1,6 @@
 mod aba;
 mod activity;
+mod appearance;
 mod authoring;
 mod content;
 mod curriculum;
@@ -246,8 +247,11 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
 
     let body = match page() {
         Page::Subjects => rsx! {
-            h1 { "अपना विषय चुनो" }
-            div { class: "subject-cards",
+            section { class: "home-cover",
+                p { "कक्षा 1 और 2" }
+                h1 { "अपना विषय चुनो" }
+            }
+            div { class: "subject-cards home-subjects",
                 for item in snapshot.catalog.subjects() {
                     {
                         let id = item.id.clone();
@@ -273,7 +277,7 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                         }
                     }
                 }
-                button { class: "subject-card", lang: aba_language.code(), onclick: move |_| page.set(Page::Aba),
+                button { class: "subject-card", "data-subject": "aba", lang: aba_language.code(), onclick: move |_| page.set(Page::Aba),
                     span { class: "subject-icon", aria_hidden: "true", "◇" }
                     span { "{aba_name}" }
                 }
@@ -595,6 +599,7 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
         Page::Parent(_) => rsx! { parent::Parent { data, publish, save_calibration, save_pin, focus_controls } },
     };
     let pin = snapshot.pin.clone();
+    let appearance = snapshot.appearance;
     let accent = if page() == Page::Subjects { "" } else { selected.as_str() };
     drop(snapshot);
 
@@ -602,7 +607,9 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
         document::Title { "Saksham" }
         style { {include_str!("style.css")} }
         style { {handwriting_font()} }
-        div { class: "app", "data-subject": "{accent}", lang: language.code(),
+        style { {appearance::background_styles()} }
+        div { class: "app", "data-subject": "{accent}", "data-palette": appearance.palette.id(),
+            "data-cover": appearance.background.id(), lang: language.code(),
             header {
                 if matches!(page(), Page::Subject | Page::Aba) {
                     button { class: "quiet", onclick: move |_| page.set(Page::Subjects), {language.text("‹ विषय", "‹ Subjects")} }
@@ -615,6 +622,7 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                 }
                 strong { {language.text("सक्षम", "Saksham")} }
                 span { class: "stars", "★ {stars}" }
+                appearance::AppearanceButton { language }
                 if aba_selected || (math_selected && !matches!(page(), Page::Subjects | Page::Parent(_))) {
                     button { lang: other_language.code(), onclick: move |_| {
                         let mut next = data.peek().clone();
@@ -629,6 +637,13 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                 if !matches!(page(), Page::Parent(_)) {
                     focus::FocusButton { controls: focus_controls, has_pin: pin.is_some(), language }
                     button { class: "quiet", onclick: move |_| page.set(Page::Parent(page() == Page::Aba)), {language.text("बड़ों के लिए", "For parents")} }
+                }
+            }
+            appearance::AppearanceOptions { appearance, language,
+                on_change: move |change| {
+                    let mut next = data.peek().clone();
+                    next.appearance.apply(change);
+                    commit.call(next);
                 }
             }
             main { class: if page() == Page::RoughSheet { "rough-notebook-main" } else { "" },
