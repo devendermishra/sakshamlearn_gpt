@@ -11,12 +11,12 @@ use std::{
 };
 
 #[derive(Deserialize)]
-struct Sheet {
-    page: usize,
-    row: usize,
-    file: String,
+pub(crate) struct Sheet {
+    pub(crate) page: usize,
+    pub(crate) row: usize,
+    pub(crate) file: String,
 }
-static SHEETS: LazyLock<Vec<Sheet>> =
+pub(crate) static SHEETS: LazyLock<Vec<Sheet>> =
     LazyLock::new(|| serde_json::from_str(include_str!("../assets/practice/pencil.json")).unwrap());
 #[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
@@ -27,13 +27,13 @@ struct Progress {
     completed: BTreeSet<usize>,
 }
 
-fn artwork(file: &str) -> String {
+pub(crate) fn artwork(file: &str) -> String {
     crate::pictures::practice(file)
 }
 
 // Bounds of the complete tracing pattern, excluding worksheet margins.
 // The original image/canvas coordinates are retained for saved strokes.
-fn pattern_crop(page: usize) -> Option<[f64; 4]> {
+pub(crate) fn pattern_crop(page: usize) -> Option<[f64; 4]> {
     match page {
         9 => Some([0.09, 0.23, 0.80, 0.56]),
         10 => Some([0.08, 0.12, 0.81, 0.75]),
@@ -112,7 +112,7 @@ pub fn Basic(directory: PathBuf, language: Language) -> Element {
 }
 
 #[component]
-fn PencilCanvas(
+pub(crate) fn PencilCanvas(
     src: String,
     fit_page: bool,
     crop: Option<[f64; 4]>,

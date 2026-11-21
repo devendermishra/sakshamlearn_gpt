@@ -96,3 +96,13 @@ node tests/practice-ui.cjs
 ```
 
 The UI check uses the bundled Playwright package beside the Node runtime and a fresh profile under `target`; it verifies pencil controls, restart recovery, checklist links, ABA tasks, and offline cards. Screenshots are saved under `target/practice-review`. On the Android tablet, additionally verify active-stylus input, palm rejection, touch scrolling in Move page mode, landscape layout, and airplane-mode restart recovery.
+
+## 60-day exercises
+
+Open **60-day exercises · 60 दिन के अभ्यास** from the learner home. This separate pane contains English, Hindi, Mathematics and Basic every day. Days 1–30 cover Class 1 and days 31–60 cover Class 2. Basic covers all 68 pencil-control bands and paths in source order. The plan includes every bundled academic lesson exercise, recall question and worksheet task; ABA and therapy activities are excluded. Academic listening and conversation remain included.
+
+All 60 days are open. Choose **Continue next unfinished day**, select a subject, and complete its tasks in the pane. Daily counts reflect the full content, so workloads vary. Work, answers, handwriting, breaks and resume location are saved offline in `learner-work/daily-exercises.json`, independently of normal lesson and worksheet progress. Completed tasks can be reviewed or retried without increasing completion counts. A day is complete when all four subjects are complete.
+
+The versioned manifest and coverage inventory are built deterministically from bundled source IDs in `src/daily_exercises.rs`. **Coverage inventory** in the pane lists the day, subject, goal, source and task count for every scheduled group. Dependent composition/revision steps stay together. A later plan version requires an explicit migration; incompatible or unreadable saves are reported and left untouched.
+
+Run `cargo test --locked`, `cargo build --locked`, and `node tests/daily-exercises-ui.cjs` to verify coverage, persistence and the desktop pane. On Android, additionally verify active stylus input, palm rejection, airplane-mode restart and landscape layout using the existing device acceptance checks.

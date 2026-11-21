@@ -577,3 +577,17 @@ main:has(.basic-pattern-mode) { max-width:none; padding:.75rem 1rem 1rem; }
  .basic-pattern-mode .visual-instruction .practice-picture { display:none; }
  .basic-pattern-mode .visual-instruction p { margin:0; }
 }
+
+/* Daily exercises */
+.daily-home { margin: .8rem 0; }
+.daily-days { display: grid; grid-template-columns: repeat(auto-fit, minmax(76px, 1fr)); gap: .4rem; margin: 1rem 0; }
+.daily-days button { min-height: 48px; }
+.daily-sections { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+@media (max-width: 680px) { .daily-sections { grid-template-columns: 1fr; } }
+.daily-subject { min-width: 0; border: 1px solid var(--accent-border); border-radius: 1rem; padding: 1rem; background: var(--page); }
+.daily-subject h2 { margin-top: 0; }
+.daily-goals { max-height: 24rem; overflow-y: auto; }
+.daily-goals button { display: block; width: 100%; margin: .4rem 0; text-align: left; overflow-wrap: anywhere; }
+.daily-task-source { overflow-wrap: anywhere; }
+.daily-task { min-width: 0; }
+.daily-task .pencil-frame { max-width: 100%; }

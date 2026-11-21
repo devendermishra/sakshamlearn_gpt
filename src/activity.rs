@@ -6,6 +6,23 @@ use crate::{
     writing::InkPad,
 };
 
+
+// Optional, pane-owned answer memory. Standalone lessons do not provide this context.
+#[derive(Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct ActivityDraft {
+    pub selected: Option<usize>,
+    pub missed: bool,
+    pub choices_shown: bool,
+    pub passage_ready: bool,
+    pub answer_mode: bool,
+    pub starter: Option<String>,
+    pub write_mode: bool,
+}
+
+#[derive(Clone, Copy)]
+pub struct ActivityMemory(pub Signal<ActivityDraft>);
+
 #[component]
 pub fn AnswerFeedback(correct: bool, text: String) -> Element {
     rsx! {
@@ -129,10 +146,21 @@ fn Choice(
     language: Language,
     on_done: EventHandler<bool>,
 ) -> Element {
-    let mut show = use_signal(|| !recall);
-    let mut missed = use_signal(|| false);
-    let mut wrong = use_signal(|| false);
-    let mut correct = use_signal(|| false);
+    let memory = try_use_context::<ActivityMemory>();
+    let saved = memory.map(|m| m.0.peek().clone()).unwrap_or_default();
+    let mut show = use_signal(|| !recall || saved.choices_shown);
+    let mut missed = use_signal(|| saved.missed);
+    let mut wrong = use_signal(|| saved.selected.is_some_and(|index| index != question.answer));
+    let mut correct = use_signal(|| saved.selected == Some(question.answer));
+    let mut selected = use_signal(|| saved.selected);
+    use_effect(move || {
+        let (shown, missed, selected) = (show(), missed(), selected());
+        if let Some(mut memory) = memory {
+            let mut next = memory.0.peek().clone();
+            next.choices_shown = shown; next.missed = missed; next.selected = selected;
+            if *memory.0.peek() != next { memory.0.set(next); }
+        }
+    });
     let q = question;
     let answer_label = language.text("सही जवाब है:", "The correct answer is");
     rsx! {
@@ -147,6 +175,7 @@ fn Choice(
             for (index, option) in q.options.iter().enumerate() {
                 button { key: "{index}", disabled: correct(), onclick: move |_| {
                     if !correct() {
+                        selected.set(Some(index));
                         if index == q.answer { correct.set(true); }
                         else { missed.set(true); wrong.set(true); }
                     }
@@ -178,7 +207,16 @@ fn PassageActivity(
     language: Language,
     on_done: EventHandler<bool>,
 ) -> Element {
-    let mut ready = use_signal(|| false);
+    let memory = try_use_context::<ActivityMemory>();
+    let saved = memory.map(|m| m.0.peek().clone()).unwrap_or_default();
+    let mut ready = use_signal(|| saved.passage_ready);
+    use_effect(move || {
+        let ready=ready();
+        if let Some(mut memory)=memory {
+            let mut next=memory.0.peek().clone(); next.passage_ready=ready;
+            if *memory.0.peek()!=next { memory.0.set(next); }
+        }
+    });
     let repeat = if listen {
         language.text("फिर सुनो", "Listen again")
     } else {
@@ -222,8 +260,17 @@ fn TalkActivity(
     paper: Paper,
     on_done: EventHandler<()>,
 ) -> Element {
-    let mut picked = use_signal(|| None::<String>);
-    let mut write = use_signal(|| false);
+    let memory=try_use_context::<ActivityMemory>();
+    let saved=memory.map(|m|m.0.peek().clone()).unwrap_or_default();
+    let mut picked=use_signal(||saved.starter);
+    let mut write=use_signal(||saved.write_mode);
+    use_effect(move || {
+        let (starter,write_mode)=(picked(),write());
+        if let Some(mut memory)=memory {
+            let mut next=memory.0.peek().clone(); next.starter=starter; next.write_mode=write_mode;
+            if *memory.0.peek()!=next { memory.0.set(next); }
+        }
+    });
     rsx! {
         p { class: "picture-cue", "{picture}" }
         h2 { "{prompt}" }
@@ -258,7 +305,16 @@ fn WrittenAnswer(
     paper: Paper,
     on_done: EventHandler<bool>,
 ) -> Element {
-    let mut tap = use_signal(|| false);
+    let memory=try_use_context::<ActivityMemory>();
+    let saved=memory.map(|m|m.0.peek().clone()).unwrap_or_default();
+    let mut tap=use_signal(||saved.answer_mode);
+    use_effect(move || {
+        let tap=tap();
+        if let Some(mut memory)=memory {
+            let mut next=memory.0.peek().clone(); next.answer_mode=tap;
+            if *memory.0.peek()!=next { memory.0.set(next); }
+        }
+    });
     rsx! {
         if tap() {
             Choice { passage, question, language, on_done }

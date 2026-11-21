@@ -1,4 +1,5 @@
 mod aba;
+mod daily_exercises;
 mod appearance;
 mod basic;
 mod pictures;
@@ -45,6 +46,7 @@ fn main() {
 #[derive(Clone, Copy, PartialEq)]
 enum Page {
     Subjects,
+    DailyExercises,
     Aba,
     Basic,
     Subject,
@@ -250,11 +252,19 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
         math_selected && active().is_some_and(|(id, _)| id.starts_with("new-practice-"));
 
     let body = match page() {
+        Page::DailyExercises => rsx! {
+            daily_exercises::DailyExercises {
+                directory: local_folder.clone(), math_language: snapshot.math_language,
+                scale: PaperScale::from_saved(snapshot.scale, snapshot.vertical_scale)
+            }
+        },
         Page::Subjects => rsx! {
             section { class: "home-cover",
                 p { "कक्षा 1 और 2" }
                 h1 { "अपना विषय चुनो" }
             }
+            button { class: "primary daily-home", "data-subject": "daily-exercises",
+                onclick: move |_| page.set(Page::DailyExercises), "60-day exercises · 60 दिन के अभ्यास" }
             div { class: "subject-cards home-subjects",
                 for item in snapshot.catalog.subjects() {
                     {
@@ -622,7 +632,7 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
         div { class: "app", "data-subject": "{accent}", "data-palette": appearance.palette.id(),
             "data-cover": appearance.background.id(), lang: language.code(),
             header {
-                if matches!(page(), Page::Subject | Page::Aba | Page::Basic) {
+                if matches!(page(), Page::Subject | Page::Aba | Page::Basic | Page::DailyExercises) {
                     button { class: "quiet", onclick: move |_| page.set(Page::Subjects), {language.text("‹ विषय", "‹ Subjects")} }
                 } else if page() == Page::Parent(true) {
                     button { class: "quiet", onclick: move |_| page.set(Page::Aba), "‹ {aba_name}" }

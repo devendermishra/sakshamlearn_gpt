@@ -11,35 +11,35 @@ use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, path::PathBuf, sync::LazyLock};
 
 #[derive(Deserialize)]
-struct Sheet {
-    id: String,
-    subject: String,
-    grade: u8,
-    pack: String,
-    title: String,
+pub(crate) struct Sheet {
+    pub(crate) id: String,
+    pub(crate) subject: String,
+    pub(crate) grade: u8,
+    pub(crate) pack: String,
+    pub(crate) title: String,
     #[serde(default)]
-    adult: String,
-    tasks: Vec<Task>,
+    pub(crate) adult: String,
+    pub(crate) tasks: Vec<Task>,
 }
 
 #[derive(Deserialize)]
-struct Task {
-    prompt: String,
+pub(crate) struct Task {
+    pub(crate) prompt: String,
     #[serde(default)]
-    picture: Option<String>,
+    pub(crate) picture: Option<String>,
     #[serde(default)]
-    context: String,
+    pub(crate) context: String,
     #[serde(default)]
-    hint: String,
+    pub(crate) hint: String,
     #[serde(default)]
-    key: String,
+    pub(crate) key: String,
     #[serde(flatten)]
-    action: Action,
+    pub(crate) action: Action,
 }
 
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-enum Action {
+pub(crate) enum Action {
     Choice { options: Vec<String>, correct: usize },
     Order { options: Vec<String>, order: Vec<usize> },
     Number { answer: String },
@@ -49,7 +49,7 @@ enum Action {
     Adult,
 }
 
-static SHEETS: LazyLock<Vec<Sheet>> = LazyLock::new(|| {
+pub(crate) static SHEETS: LazyLock<Vec<Sheet>> = LazyLock::new(|| {
     serde_json::from_str(include_str!("content/worksheets.json"))
         .expect("bundled worksheets are valid")
 });
@@ -63,11 +63,11 @@ struct Progress {
 
 #[derive(Clone, Default, Deserialize, PartialEq, Serialize)]
 #[serde(default)]
-struct Draft {
-    ink: Ink,
-    taps: Vec<usize>,
-    input: String,
-    checked: bool,
+pub(crate) struct Draft {
+    pub(crate) ink: Ink,
+    pub(crate) taps: Vec<usize>,
+    pub(crate) input: String,
+    pub(crate) checked: bool,
 }
 
 fn text_language(text: &str, fallback: Language) -> Language {
@@ -212,7 +212,7 @@ fn Practice(
 }
 
 #[component]
-fn Exercise(
+pub(crate) fn Exercise(
     sheet: usize,
     position: usize,
     language: Language,
@@ -318,7 +318,11 @@ fn Exercise(
                         },
                             NumericField { label: language.text("उत्तर", "Answer").to_owned(), value: number,
                                 language, limit: 28, keys: if answer.contains(',') { Keys::List } else { Keys::Whole },
-                                disabled: complete, on_change: move |value| pending.set(Some(value)) }
+                                disabled: complete, on_change: move |value: String| {
+                                    pending.set(Some(value.clone()));
+                                    let mut edited = draft.clone(); edited.input = value; edited.checked = false;
+                                    on_edit.call(edited);
+                                } }
                             if !complete {
                                 button { r#type: "submit", disabled: empty, {language.text("जाँचो", "Check")} }
                             }
