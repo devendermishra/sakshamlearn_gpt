@@ -1,0 +1,194 @@
+[
+  {
+    "id": "speech-baby",
+    "en": "Baby",
+    "hi": "बच्चा",
+    "sound": "BA",
+    "page": 2,
+    "source": "Autism Parenting Magazine, Speech Practice Flashcards"
+  },
+  {
+    "id": "speech-dad",
+    "en": "Dad",
+    "hi": "पापा",
+    "sound": "DA",
+    "page": 2,
+    "source": "Autism Parenting Magazine, Speech Practice Flashcards"
+  },
+  {
+    "id": "speech-mom",
+    "en": "Mom",
+    "hi": "माँ",
+    "sound": "MA",
+    "page": 2,
+    "source": "Autism Parenting Magazine, Speech Practice Flashcards"
+  },
+  {
+    "id": "speech-panda",
+    "en": "Panda",
+    "hi": "पांडा",
+    "sound": "PA",
+    "page": 2,
+    "source": "Autism Parenting Magazine, Speech Practice Flashcards"
+  },
+  {
+    "id": "speech-lamp",
+    "en": "Lamp",
+    "hi": "लैंप",
+    "sound": "AM",
+    "page": 3,
+    "source": "Autism Parenting Magazine, Speech Practice Flashcards"
+  },
+  {
+    "id": "speech-fan",
+    "en": "Fan",
+    "hi": "पंखा",
+    "sound": "AN",
+    "page": 3,
+    "source": "Autism Parenting Magazine, Speech Practice Flashcards"
+  },
+  {
+    "id": "speech-apple",
+    "en": "Apple",
+    "hi": "सेब",
+    "sound": "AP",
+    "page": 3,
+    "source": "Autism Parenting Magazine, Speech Practice Flashcards"
+  },
+  {
+    "id": "speech-cat",
+    "en": "Cat",
+    "hi": "बिल्ली",
+    "sound": "AT",
+    "page": 3,
+    "source": "Autism Parenting Magazine, Speech Practice Flashcards"
+  },
+  {
+    "id": "speech-ball",
+    "en": "Ball",
+    "hi": "गेंद",
+    "sound": "",
+    "page": 4,
+    "source": "Autism Parenting Magazine, Speech Practice Flashcards"
+  },
+  {
+    "id": "speech-doll",
+    "en": "Doll",
+    "hi": "गुड़िया",
+    "sound": "",
+    "page": 4,
+    "source": "Autism Parenting Magazine, Speech Practice Flashcards"
+  },
+  {
+    "id": "speech-blocks",
+    "en": "Blocks",
+    "hi": "ब्लॉक",
+    "sound": "",
+    "page": 4,
+    "source": "Autism Parenting Magazine, Speech Practice Flashcards"
+  },
+  {
+    "id": "speech-train",
+    "en": "Train",
+    "hi": "रेलगाड़ी",
+    "sound": "",
+    "page": 4,
+    "source": "Autism Parenting Magazine, Speech Practice Flashcards"
+  },
+  {
+    "id": "speech-hat",
+    "en": "Hat",
+    "hi": "टोपी",
+    "sound": "",
+    "page": 5,
+    "source": "Autism Parenting Magazine, Speech Practice Flashcards"
+  },
+  {
+    "id": "speech-shoes",
+    "en": "Shoes",
+    "hi": "जूते",
+    "sound": "",
+    "page": 5,
+    "source": "Autism Parenting Magazine, Speech Practice Flashcards"
+  },
+  {
+    "id": "speech-socks",
+    "en": "Socks",
+    "hi": "मोज़े",
+    "sound": "",
+    "page": 5,
+    "source": "Autism Parenting Magazine, Speech Practice Flashcards"
+  },
+  {
+    "id": "speech-shirt",
+    "en": "Shirt",
+    "hi": "कमीज़",
+    "sound": "",
+    "page": 5,
+    "source": "Autism Parenting Magazine, Speech Practice Flashcards"
+  },
+  {
+    "id": "speech-chair",
+    "en": "Chair",
+    "hi": "कुर्सी",
+    "sound": "",
+    "page": 6,
+    "source": "Autism Parenting Magazine, Speech Practice Flashcards"
+  },
+  {
+    "id": "speech-table",
+    "en": "Table",
+    "hi": "मेज़",
+    "sound": "",
+    "page": 6,
+    "source": "Autism Parenting Magazine, Speech Practice Flashcards"
+  },
+  {
+    "id": "speech-bed",
+    "en": "Bed",
+    "hi": "बिस्तर",
+    "sound": "",
+    "page": 6,
+    "source": "Autism Parenting Magazine, Speech Practice Flashcards"
+  },
+  {
+    "id": "speech-book",
+    "en": "Book",
+    "hi": "किताब",
+    "sound": "",
+    "page": 6,
+    "source": "Autism Parenting Magazine, Speech Practice Flashcards"
+  },
+  {
+    "id": "speech-happy",
+    "en": "Happy",
+    "hi": "खुश",
+    "sound": "",
+    "page": 7,
+    "source": "Autism Parenting Magazine, Speech Practice Flashcards"
+  },
+  {
+    "id": "speech-sad",
+    "en": "Sad",
+    "hi": "उदास",
+    "sound": "",
+    "page": 7,
+    "source": "Autism Parenting Magazine, Speech Practice Flashcards"
+  },
+  {
+    "id": "speech-hungry",
+    "en": "Hungry",
+    "hi": "भूखा",
+    "sound": "",
+    "page": 7,
+    "source": "Autism Parenting Magazine, Speech Practice Flashcards"
+  },
+  {
+    "id": "speech-tired",
+    "en": "Tired",
+    "hi": "थका हुआ",
+    "sound": "",
+    "page": 7,
+    "source": "Autism Parenting Magazine, Speech Practice Flashcards"
+  }
+]

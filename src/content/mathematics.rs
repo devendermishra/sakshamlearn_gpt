@@ -29,6 +29,7 @@ fn starter_topics(language: Language) -> Vec<Topic> {
                     usize::from(number % 2 == 0),
                 );
                 exercises.push(Exercise {
+                    picture: None,
                     id: format!("count-{number}"),
                     kind: Kind::Count {
                         quantity: number,
@@ -37,6 +38,7 @@ fn starter_topics(language: Language) -> Vec<Topic> {
                     },
                 });
                 exercises.push(Exercise {
+                    picture: None,
                     id: format!("write-{number}"),
                     kind: Kind::Trace {
                         model: digit.clone(),
@@ -92,19 +94,13 @@ pub fn topics(language: Language) -> Vec<Topic> {
         "tables-mixed",
         language.text("पहाड़े मिलाकर", "Mixed multiplication tables"),
         tables(language),
-        vec![
-            fact(2, 7),
-            fact(5, 9),
-            fact(3, 8),
-            fact(6, 7),
-            fact(9, 9),
-            fact(10, 6),
-        ]
+        vec![2, 5, 3, 6, 9, 10]
         .into_iter()
-        .map(Kind::Choice)
+        .map(|size| Kind::Table { size, writing: false })
         .collect(),
         [fact(4, 8), fact(7, 6), fact(8, 9), fact(10, 10)],
     ));
+    topics.last_mut().unwrap().revision = 1;
     topics.extend(division_topics(language));
     writing_practice::topics(language, &topics)
         .into_iter()
@@ -149,6 +145,7 @@ fn topic(
             .into_iter()
             .enumerate()
             .map(|(index, kind)| Exercise {
+                picture: None,
                 id: format!("item-{}", index + 1),
                 kind,
             })
@@ -599,32 +596,20 @@ fn fact(size: u8, groups: u8) -> Question {
 }
 
 fn table(language: Language, size: u8) -> Topic {
-    let mut items: Vec<_> = (1..=10)
-        .map(|groups| Kind::Choice(fact(size, groups)))
-        .collect();
-    let example = match language {
-        Language::Hindi => format!(
-            "हर समूह में {size} हैं। 1 समूह में {size}, 2 समूहों में {}। हर नए समूह पर {size} जोड़ो।",
-            size * 2
-        ),
-        Language::English => format!(
-            "Each group has {size}. One group has {size}, and two groups have {}. Add {size} for each new group.",
-            size * 2
-        ),
-    };
-    items[0] = Kind::Read(example, fact(size, 1));
     let title = match language {
         Language::Hindi => format!("{size} का पहाड़ा"),
         Language::English => format!("{size} times table"),
     };
-    topic(
+    let mut lesson = topic(
         2,
         &format!("table-{size}"),
         &title,
         tables(language),
-        items,
+        vec![Kind::Table { size, writing: false }],
         [fact(size, 3), fact(size, 5), fact(size, 7), fact(size, 9)],
-    )
+    );
+    lesson.revision = 1;
+    lesson
 }
 
 fn division(divisor: u8, quotient: u8) -> Question {

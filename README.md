@@ -22,12 +22,14 @@ Open **Everyday words** in English or **रोज़ के शब्द** in Hi
 
 ## Build and install
 
+Build from this `saksham-stage` checkout, which includes both Colors & backgrounds and the dotted tracing update. Colors & backgrounds in the header offers Forest, Sky, Marigold, and Plum palettes plus Storybook, Playground, Animal friends, and Plain backgrounds. Choices are saved with learner progress. Run `node tests/appearance-ui.cjs` after a desktop build to check theme switching and restart persistence.
+
 Install Rust, the Dioxus 0.7.10 CLI, and Android Studio with a JDK, Android SDK, build tools, platform tools, and a side-by-side NDK. Configure `ANDROID_HOME` and `ANDROID_NDK_HOME` for the installed versions, then run:
 
 ```powershell
 rustup target add aarch64-linux-android
 cargo test --locked
-node --test tests/trace.cjs
+node --test tests/trace.cjs tests/pencil.cjs
 ./build-android.ps1
 adb devices
 adb install -r target/Saksham-Android.apk
@@ -36,6 +38,10 @@ adb install -r target/Saksham-Android.apk
 The script builds an ARM64 debug APK, adds the Saksham launcher icon, and packages the result with Gradle's debug signing key. Keep the same signing key for in-place updates. You can also copy the APK to the tablet and open it there. Run `cargo run --locked` for a Windows desktop preview with WebView2.
 
 On the tablet, open **बड़ों के लिए**, set a parent PIN, and measure both edges of the 80 mm reference square with a physical ruler. Enter both measurements, adjust the guides, and check the Hindi and Mathematics samples with the ruler before saving. Repeat if the device display scaling changes. The default size before calibration is an estimate. Writing accepts active stylus input. Tap buttons with a finger or stylus. Progress and saved writing live in the app's local storage and will be erased if its app data is cleared.
+
+Trace models use round dots along a single centre path to keep Hindi loops clear, with blue arrows suggesting a tracing direction. Arrows describe local path direction, rather than a prescribed handwriting stroke sequence. The original filled glyph remains the coverage target for feedback. Run `node --test tests/trace.cjs tests/trace-guide.cjs` for path and feedback checks, and `node tests/trace-guide-ui.cjs` for headless Edge rendering checks and a preview in `target/trace-review/dotted-hindi.png`.
+
+Hindi tracing uses the bundled Kalam handwriting font (Indian Type Foundry, SIL OFL; see `assets/Kalam-OFL.txt`) so small handwritten loops do not depend on the tablet's system font. Paths are extracted at three times the canvas resolution, then scaled to the calibrated paper. Tiny loops use smaller, closer dots. `node tests/hindi-loop-ui.cjs` reviews 49 Hindi forms and checks loops in 13 base forms and 84 forms with matras; `node tests/trace-guide-ui.cjs` also checks the integrated renderer for झ, द, दा, दि, and related letters.
 
 ## Rough sheets and worksheets
 
@@ -62,3 +68,31 @@ Set a parent PIN once through **For parents** or the Focus Mode shortcut. Tap th
 - Complete a topic and repeat it to verify that the star total does not increase a second time. Check due reviews and next-day retry behavior.
 - Trace a model, an incomplete model, and a scribble. Verify that the hint responds and that an attempt can advance regardless of its trace result.
 - Exercise shared pinning and managed lock separately. On a provisioned tablet verify Home, Recents, notification shade, and app switching are blocked. Check parent PIN exit and administrator recovery.
+
+
+## Basic pencil control and ABA picture practice
+
+Open **Basic** from the learner menu, independently of class selection. Its 68 activities cover all 14 pencil-control source pages: one practice band at a time on pages 1–8, then six full-page paths. Draw with the stylus; use **Undo stroke**, **Clear exercise**, and **Mark complete** as needed. **Move page** disables drawing while panning, and +/− changes zoom. **All pages** jumps directly to a worksheet. Strokes, completion, position, and breaks are saved locally. An adult decides when to mark an exercise complete; tracing accuracy never blocks advancement.
+
+In **ABA Learning**, choose **Flashcards** or **Exercises**, or use **Open practice** beside any of the 30 checklist activities. Picture practice includes identification, matching, transport/bird sorting, alternating patterns, yes/no, and adult-led speech and practical tasks. Rounds contain three tasks and offer repeat, continue, or a break. Adults record **Independent**, **With help**, or **Try later**. These records do not tick the daily checklist. Oral-motor activities retain the existing therapist-directed instructions.
+
+The offline image catalog contains 42 realistic pictures generated with the built-in OpenAI imagegen tool, plus 24 original cards from Autism Parenting Magazine's *Speech Practice Flashcards*. Source-page numbers appear in card notes. Original CV/VC labels are preserved as source prompts and are not pronunciation scoring rules. Generated prompts are recorded in `assets/pictures/generation-prompts.json`. Shared pictures support concrete English/Hindi vocabulary in both classes, position words, counting, equal groups, and selected mathematics worksheets. Parent-authored exercises can optionally select a bundled picture; older saved exercises remain compatible.
+
+Re-import the two source PDFs with Python, Pillow, and pypdfium2 installed:
+
+```powershell
+python tools/import_practice_pdfs.py D:/Garage/sakshamlearn_gpt/practice_books
+```
+
+Basic work is stored in `learner-work/basic-pencil.json`; ABA rounds are in `learner-work/aba-exercises.json`, separate from daily checklist progress. If saved work cannot be read, the module displays an error instead of overwriting it. A failed write offers retry.
+
+Additional desktop verification:
+
+```powershell
+cargo test --locked
+node --test tests/trace.cjs
+cargo build --locked
+node tests/practice-ui.cjs
+```
+
+The UI check uses the bundled Playwright package beside the Node runtime and a fresh profile under `target`; it verifies pencil controls, restart recovery, checklist links, ABA tasks, and offline cards. Screenshots are saved under `target/practice-review`. On the Android tablet, additionally verify active-stylus input, palm rejection, touch scrolling in Move page mode, landscape layout, and airplane-mode restart recovery.

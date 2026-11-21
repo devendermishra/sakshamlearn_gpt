@@ -76,11 +76,13 @@ async function fillQuestion(scope, prompt, first, second) {
         await page.getByRole("alert").getByText("Add at least one exercise.").waitFor();
         await button(page, "Add exercise").click();
         await fillQuestion(page.getByRole("group", {name:"Exercise 1"}), "How many?", "One", "Two");
+        await page.getByLabel("Picture (optional)", {exact:true}).selectOption("apple");
         await button(page, "Add recall question").click();
         await fillQuestion(page.getByRole("group", {name:"Recall 1"}), "Remember the answer", "One", "Two");
         const before = await fs.readFile(save, "utf8");
         await button(page, "Preview").click();
         await page.getByRole("heading", {name:"How many?"}).waitFor();
+        await page.getByRole("img", {name:/^(Apple|सेब)$/}).waitFor();
         await button(page, "One").click();
         await page.getByText("सही!", {exact: true}).waitFor();
         await button(page, "आगे").click();

@@ -1,6 +1,8 @@
 mod aba;
-mod activity;
 mod appearance;
+mod basic;
+mod pictures;
+mod activity;
 mod authoring;
 mod content;
 mod curriculum;
@@ -30,7 +32,8 @@ fn handwriting_font() -> &'static str {
     static FONT: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
         use base64::{engine::general_purpose::STANDARD, Engine as _};
         let bytes = include_bytes!("../assets/PatrickHand-Regular.ttf");
-        format!("@font-face {{ font-family: 'Patrick Hand'; src: url(data:font/ttf;base64,{}) format('truetype'); font-display: swap; }}", STANDARD.encode(bytes))
+        let hindi = include_bytes!("../assets/Kalam-Regular.ttf");
+        format!("/* {} */\n@font-face {{ font-family: 'Patrick Hand'; src: url(data:font/ttf;base64,{}) format('truetype'); font-display: swap; }}\n@font-face {{ font-family: 'Kalam'; src: url(data:font/ttf;base64,{}) format('truetype'); font-display: swap; }}", include_str!("../assets/Kalam-OFL.txt"), STANDARD.encode(bytes), STANDARD.encode(hindi))
     });
     &FONT
 }
@@ -43,6 +46,7 @@ fn main() {
 enum Page {
     Subjects,
     Aba,
+    Basic,
     Subject,
     Group,
     Trace,
@@ -162,7 +166,7 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
     let aba_selected = page() == Page::Aba;
     let aba_language = snapshot.aba_language.unwrap_or(Language::English);
     let aba_name = aba_language.text("एबीए सीखें", "ABA Learning");
-    let language = if matches!(page(), Page::Aba | Page::Parent(true)) {
+    let language = if matches!(page(), Page::Aba | Page::Basic | Page::Parent(true)) {
         aba_language
     } else if math_selected && page() != Page::Subjects {
         snapshot.math_language
@@ -277,6 +281,10 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                         }
                     }
                 }
+                button { class: "subject-card", "data-subject": "basic", lang: aba_language.code(), onclick: move |_| page.set(Page::Basic),
+                    span { class: "subject-icon", aria_hidden: "true", "✎" }
+                    span { {aba_language.text("बुनियादी अभ्यास", "Basic")} }
+                }
                 button { class: "subject-card", "data-subject": "aba", lang: aba_language.code(), onclick: move |_| page.set(Page::Aba),
                     span { class: "subject-icon", aria_hidden: "true", "◇" }
                     span { "{aba_name}" }
@@ -284,8 +292,9 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
             }
         },
         Page::Aba => rsx! {
-            aba::AbaLearning { language, name: aba_name, data, commit }
+            aba::AbaLearning { language, name: aba_name, data, commit, directory: local_folder.clone() }
         },
+        Page::Basic => rsx! { basic::Basic { directory: local_folder.clone(), language } },
         Page::Subject => rsx! {
             h1 { class: "subject-heading",
                 span { class: "subject-icon", aria_hidden: "true", {subject_icon(&selected)} }
@@ -433,12 +442,13 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                 let step = Step { subject: &subject, topic: &topic, review: false, index };
                 let title = topic.title.clone();
                 let ink = step.ink(&snapshot);
+                let picture = topic.exercises.get(index).and_then(|e| e.picture.clone()).or_else(|| step.exercise().and_then(pictures::for_kind).map(str::to_string));
                 let kind = step.exercise().cloned();
                 let scale = PaperScale::from_saved(snapshot.scale, snapshot.vertical_scale);
                 rsx! {
                     h1 { "{title}" }
                     if let Some(kind) = kind {
-                        Activity { key: "jump-{id}-{index}", kind, initial: ink, scale, language, handwriting,
+                        Activity { key: "jump-{id}-{index}", picture, kind, initial: ink, scale, language, handwriting,
                             on_input: move |input| {
                                 let mut next = data.peek().clone();
                                 let step = Step { subject: &subject, topic: &topic, review: false, index };
@@ -533,6 +543,7 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                         .clone(),
                     )
                 });
+                let picture = if recall { None } else { topic.exercises.get(index).and_then(|e| e.picture.clone()).or_else(|| pictures::for_kind(&kind).map(str::to_string)) };
                 let ink = step.ink(&snapshot);
                 let revision_source = step
                     .revision_source(&snapshot)
@@ -546,7 +557,7 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                   section { key: "{activity_key}",
                     h1 { "{title}" }
                     if recall { h2 { "{recall_label}" } } else { p { class: "step", "{practice_label} {index + 1} / {total}" } }
-                    Activity { kind, initial: ink, helper_draft, scale, recall, language, handwriting,
+                    Activity { picture, kind, initial: ink, helper_draft, scale, recall, language, handwriting,
                         ruled_paper: content::Paper::for_subject(&subject), revision_source,
                         on_input: move |input| {
                             let mut next = data.peek().clone();
@@ -611,7 +622,7 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
         div { class: "app", "data-subject": "{accent}", "data-palette": appearance.palette.id(),
             "data-cover": appearance.background.id(), lang: language.code(),
             header {
-                if matches!(page(), Page::Subject | Page::Aba) {
+                if matches!(page(), Page::Subject | Page::Aba | Page::Basic) {
                     button { class: "quiet", onclick: move |_| page.set(Page::Subjects), {language.text("‹ विषय", "‹ Subjects")} }
                 } else if page() == Page::Parent(true) {
                     button { class: "quiet", onclick: move |_| page.set(Page::Aba), "‹ {aba_name}" }
@@ -623,10 +634,10 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                 strong { {language.text("सक्षम", "Saksham")} }
                 span { class: "stars", "★ {stars}" }
                 appearance::AppearanceButton { language }
-                if aba_selected || (math_selected && !matches!(page(), Page::Subjects | Page::Parent(_))) {
+                if aba_selected || page() == Page::Basic || (math_selected && !matches!(page(), Page::Subjects | Page::Parent(_))) {
                     button { lang: other_language.code(), onclick: move |_| {
                         let mut next = data.peek().clone();
-                        if aba_selected {
+                        if aba_selected || page() == Page::Basic {
                             next.aba_language = Some(other_language);
                         } else {
                             next.math_language = other_language;

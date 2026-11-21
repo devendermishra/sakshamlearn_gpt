@@ -179,6 +179,7 @@ impl Problem {
                     &[groups],
                 )
             }
+            Self::Product { size, .. } => Kind::Table { size, writing: false },
             _ => Kind::Choice(self.question(language, answer_first, prefer_higher, false)),
         }
     }
@@ -209,7 +210,7 @@ fn candidates(grade: u8, skill: PracticeSkill) -> Vec<Problem> {
             problems
         }
         PracticeSkill::Tables => (1..=10)
-            .flat_map(|size| (1..=10).map(move |groups| Problem::Product { size, groups }))
+            .map(|size| Problem::Product { size, groups: 1 })
             .collect(),
         PracticeSkill::Division => (2..=10)
             .flat_map(|size| (2..=10).map(move |groups| Problem::Quotient { size, groups }))

@@ -86,7 +86,12 @@ impl Step<'_> {
             let sample = Sample {
                 label: format!("{} · {}", self.topic.title, writing.label),
                 model: writing.model.into(),
-                solution: writing.solution.map(str::to_owned),
+                solution: match self.exercise()? {
+                    Kind::Table { size, .. } => Some((1..=10).map(|groups|
+                        format!("{size} × {groups} = {}", size * groups)
+                    ).collect::<Vec<_>>().join("\n")),
+                    _ => writing.solution.map(str::to_owned),
+                },
                 correct,
                 lines: writing.lines,
                 paper: writing.paper,

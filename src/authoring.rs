@@ -38,6 +38,7 @@ fn form(kind: &Kind) -> &'static str {
         | Kind::Talk { .. }
         | Kind::Compose(_, _, Some(_))
         | Kind::Solve { .. }
+        | Kind::Table { .. }
         | Kind::Count { .. } => "copied",
     }
 }
@@ -61,6 +62,7 @@ mod tests {
         let mut topic = blank_topic();
         for paper in [Paper::Hindi, Paper::Digit] {
             topic.exercises.push(Exercise {
+                picture: None,
                 id: content::new_id(),
                 kind: empty_form("trace", paper),
             });
@@ -152,7 +154,7 @@ pub fn Authoring(
                         {
                             let output_lines = exercise.kind.writing(paper).map(|writing| writing.lines);
                             rsx! {
-                                Activity { key: "exercise-{index}", kind: exercise.kind.clone(), initial: Vec::new(), scale,
+                                Activity { key: "exercise-{index}", picture: exercise.picture.clone(), kind: exercise.kind.clone(), initial: Vec::new(), scale,
                                     language, ruled_paper: paper, revision_source: previous_writing(),
                                     handwriting: subject_id == "en",
                                     on_input: move |input: Input| if !input.is_draft() {
@@ -206,7 +208,18 @@ pub fn Authoring(
                     }
                     h3 { "Exercises" }
                     for (index, exercise) in topic.exercises.iter().enumerate() {
-                        ExerciseFields { key: "{exercise.id}", kind: exercise.kind.clone(), index, count: topic.exercises.len(), default_paper: paper,
+                      div { key: "{exercise.id}",
+                        label { "Picture (optional)"
+                            select { aria_label: "Picture (optional)", value: exercise.picture.clone().unwrap_or_default(), onchange: move |event| {
+                                if let Some(topic) = draft.write().as_mut() { let id=event.value(); topic.exercises[index].picture=if id.is_empty(){None}else{Some(id)}; }
+                            },
+                                option { value: "", "No picture" }
+                                for card in crate::pictures::CARDS.iter() {
+                                    option { value: "{card.id}", "{card.en} · {card.id}" }
+                                }
+                            }
+                        }
+                        ExerciseFields { kind: exercise.kind.clone(), index, count: topic.exercises.len(), default_paper: paper,
                             on_change: move |kind| {
                                 if let Some(topic) = draft.write().as_mut() { topic.exercises[index].kind = kind; }
                             },
@@ -217,10 +230,11 @@ pub fn Authoring(
                                 if let Some(topic) = draft.write().as_mut() { topic.exercises.remove(index); }
                             }
                         }
+                      }
                     }
                     button { onclick: move |_| {
                         if let Some(topic) = draft.write().as_mut() {
-                            topic.exercises.push(Exercise { id: content::new_id(), kind: empty_form("choice", paper) });
+                            topic.exercises.push(Exercise { picture: None, id: content::new_id(), kind: empty_form("choice", paper) });
                         }
                     }, "Add exercise" }
                     h3 { "Recall questions" }

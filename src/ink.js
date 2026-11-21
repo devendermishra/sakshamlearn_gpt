@@ -1,9 +1,9 @@
-const {id, model, initial, readonly, square, plain, englishPaper, digitWidth = 0, equationWidth = 0, lineTrace = false, fullSheet = false, blankColumns = 1, noteColumns = 0, lines, allowMouse, english, sentenceWidth} = config;
+const {id, model, initial, readonly, square, plain, englishPaper, digitWidth = 0, equationWidth = 0, lineTrace = false, fullSheet = false, blankColumns = 1, noteColumns = 0, lines, allowMouse, english, sentenceWidth, tableTrace = null} = config;
 const container = document.getElementById(id);
 if (!container) return;
-if (englishPaper && model) {
+if (model && !square && !plain) {
     try {
-        await document.fonts.load('144px "Patrick Hand"', model);
+        await document.fonts.load(englishPaper ? '144px "Patrick Hand"' : '91px "Kalam"', model);
     } catch (error) {
         console.warn("Could not load the handwriting font", error);
     }
@@ -15,7 +15,9 @@ const rowHeight = 216;
 const wideModelWidth = englishPaper ? 1958 : 1305;
 const glyphPadding = 28;
 const englishFont = '144px "Patrick Hand", Arial, sans-serif';
-const hindiFont = '"Noto Sans Devanagari", Mangal, sans-serif';
+// A bundled handwriting model preserves the small loops in झ and द; device
+// text fonts can fill those knots completely before centre-line extraction.
+const hindiFont = '"Kalam", "Noto Sans Devanagari", Mangal, sans-serif';
 const text = (hindi, translation) => english ? translation : hindi;
 // Existing ink in a practice grid uses coordinates local to its original cells.
 const hasGridInk = initial.length === 2 * traceColumns && initial.some(cell => cell.length);
@@ -31,8 +33,8 @@ if (sentence.length) {
 }
 const symbols = Array.from(model);
 const symbolWidth = equationWidth || digitWidth;
-const columns = model ? (equationWidth || (digitWidth ? 2 * digitWidth : lineTrace || sentence.length ? 1 : traceColumns)) : blankColumns;
-const count = fullSheet ? 1 : noteColumns + columns * (model ? 2 : lines);
+const columns = tableTrace ? 2 * equationWidth : model ? (equationWidth || (digitWidth ? 2 * digitWidth : lineTrace || sentence.length ? 1 : traceColumns)) : blankColumns;
+const count = tableTrace ? columns * 10 : fullSheet ? 1 : noteColumns + columns * (model ? 2 : lines);
 const modelCell = model && !symbolWidth && !lineTrace && !sentence.length;
 const grid = container.querySelector(".ink-grid");
 const notes = container.querySelector(".regroup-grid");
@@ -107,6 +109,8 @@ function paper(index) {
         canvas.setAttribute("aria-label", label);
         notes.append(canvas);
     } else {
+        if (tableTrace && index % columns === equationWidth) canvas.classList.add("table-copy-start");
+        if (tableTrace && index % columns < equationWidth) canvas.dataset.model = characterAt(index);
         canvas.setAttribute("aria-label", index === 0 && modelCell
             ? text("नमूना", "Example")
             : text("लिखने की जगह", "Writing space"));
@@ -115,7 +119,7 @@ function paper(index) {
     return canvas;
 }
 
-function glyph(ctx, text, kind) {
+function glyph(ctx, text, kind, width = ctx.canvas.width) {
     ctx.save();
     ctx.textBaseline = "alphabetic";
     ctx.textAlign = "center";
@@ -134,7 +138,7 @@ function glyph(ctx, text, kind) {
     }
     useHindiFont(ctx);
     ctx.textAlign = sentence.length ? "left" : "center";
-    ctx.fillText(text, sentence.length ? glyphPadding / 2 : ctx.canvas.width / 2, 143, ctx.canvas.width - glyphPadding);
+    ctx.fillText(text, sentence.length ? glyphPadding / 2 : width / 2, 143, width - glyphPadding);
     ctx.restore();
 }
 
@@ -176,11 +180,12 @@ function line(ctx, points, color, width) {
     ctx.stroke();
 }
 
-function raster(canvas, paint) {
+function raster(canvas, paint, resolution = 1) {
     const scratch = document.createElement("canvas");
-    scratch.width = canvas.width;
-    scratch.height = canvas.height;
+    scratch.width = canvas.width * resolution;
+    scratch.height = canvas.height * resolution;
     const ctx = scratch.getContext("2d", {willReadFrequently: true});
+    ctx.scale(resolution, resolution);
     paint(ctx);
     return ctx.getImageData(0, 0, scratch.width, scratch.height).data;
 }
@@ -191,39 +196,55 @@ function draw(index) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (modelCell && index === 0) glyph(ctx, model, "model");
     if (isTraceCell(index)) {
-        const mask = template(canvas, index);
-        ctx.fillStyle = "#84918b";
-        for (let y = 0; y < canvas.height; y += 5) {
-            for (let x = 0; x < canvas.width; x += 5) {
-                if (mask[(y * canvas.width + x) * 4 + 3] > 100) ctx.fillRect(x, y, 2.2, 2.2);
-            }
-        }
+        paintTraceGuide(ctx, guide(canvas, index));
     }
     for (const stroke of ink[index]) line(ctx, stroke, "#223c37", 5);
 }
 
 function isTraceCell(index) {
+    if (tableTrace) return index % columns < equationWidth && !!characterAt(index);
     return !!model && index >= (modelCell ? 1 : 0) && index < columns;
 }
 
+function characterAt(index) {
+    if (tableTrace) {
+        const groups = Math.floor(index / columns) + 1;
+        return [String(tableTrace), "×", String(groups), "=", String(tableTrace * groups)][index % equationWidth] || "";
+    }
+    return symbolWidth ? symbols[index % symbolWidth] : model;
+}
+
 const references = new Map();
-function template(canvas, index) {
-    const character = symbolWidth ? symbols[index % symbolWidth] : model;
-    if (!references.has(character)) {
-        references.set(character, raster(canvas, ctx => {
+const guides = new Map();
+function guide(canvas, index) {
+    const character = characterAt(index);
+    if (!guides.has(character)) {
+        // Preserve subpixel counters in handwritten Hindi, including when matras
+        // select alternate glyphs. Reduce coordinates only after extracting paths.
+        const resolution = !square && !englishPaper ? 3 : 1;
+        const paths = traceGuide(template(canvas, index, resolution), canvas.width * resolution, canvas.height * resolution);
+        guides.set(character, paths.map(path => path.map(([x,y]) => [x/resolution,y/resolution])));
+    }
+    return guides.get(character);
+}
+function template(canvas, index, resolution = 1) {
+    const character = characterAt(index);
+    const key = character + '/' + resolution;
+    if (!references.has(key)) {
+        references.set(key, raster(canvas, ctx => {
             if (!sentence.length) {
-                glyph(ctx, character, "model");
+                glyph(ctx, character, "model", canvas.width);
                 return;
             }
             for (const [index, row] of sentence.entries()) {
                 ctx.save();
                 ctx.translate(0, index * rowHeight);
-                glyph(ctx, row, "model");
+                glyph(ctx, row, "model", canvas.width);
                 ctx.restore();
             }
-        }));
+        }, resolution));
     }
-    return references.get(character);
+    return references.get(key);
 }
 
 function feedback() {

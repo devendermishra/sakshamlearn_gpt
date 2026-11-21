@@ -40,6 +40,7 @@ fn topic(
         exercises: exercises
             .into_iter()
             .map(|(id, kind)| Exercise {
+                picture: None,
                 id: id.into(),
                 kind,
             })

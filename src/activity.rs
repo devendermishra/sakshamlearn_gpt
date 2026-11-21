@@ -33,6 +33,7 @@ fn SolveActivity(
     answer: Vec<u8>,
     helper: Option<ArithmeticHelp>,
     notebook: bool,
+    #[props(default)] table_size: Option<u8>,
     lines: usize,
     initial: Ink,
     helper_draft: HelperDraft,
@@ -68,7 +69,7 @@ fn SolveActivity(
         }
         if let Some(work) = checked() {
             InkPad { key: "{language.code()}", id: "checked-math-ink", model: "", initial: work.clone(),
-                scale, lines, paper, notebook: equation, language, readonly: true }
+                scale, lines, paper, notebook: equation, table_size, language, readonly: true }
             if legacy || correct().is_some() {
                 h3 { {language.text("सही हल", "Worked solution")} }
                 p { class: "passage", "{solution}" }
@@ -105,12 +106,14 @@ fn SolveActivity(
                         _ => language.text("रेखा के नीचे जवाब लिखो।", "Write the answer under the line."),
                     }}
                 }
+            } else if table_size.is_some() {
+                p { {language.text("हर पूरी संख्या एक खाने में लिखो, जैसे 10 या 100।", "Write each whole number in one box, such as 10 or 100.")} }
             } else {
                 p { {language.text("खानों में अपना हल लिखो। हर खाने में एक अंक या चिह्न लिखो।", "Write your working in the grid. Use one square for each digit or symbol.")} }
             }
             {rsx! {
                 InkPad { key: "{language.code()}", id: "solve-math-ink", model: "", initial, scale,
-                    lines, paper, notebook: equation, language, done_label: label, on_ink,
+                    lines, paper, notebook: equation, table_size, language, done_label: label, on_ink,
                     on_done: move |ink| checked.set(Some(ink)) }
             }}
         }
@@ -272,8 +275,114 @@ fn WrittenAnswer(
 }
 
 #[component]
+pub(crate) fn TableConcept(size: u8, language: Language) -> Element {
+    rsx! {
+        details { class: "table-concept",
+            summary { {language.text("पहाड़े का मतलब समझो", "Understand the table")} }
+            p { {match language {
+                Language::Hindi => format!("{size} × समूहों की संख्या: हर समूह में {size} वस्तुएँ हैं।"),
+                Language::English => format!("{size} × number of groups: each group contains {size} objects."),
+            }} }
+            div { class: "table-concept-examples",
+                for groups in 0u8..=10 {
+                    figure { key: "{groups}",
+                        figcaption { class: "table-concept-meaning",
+                            p { {match language {
+                                Language::Hindi => format!("{size} के {groups} समूह"),
+                                Language::English if groups == 1 => format!("1 group of {size}"),
+                                Language::English => format!("{groups} groups of {size}"),
+                            }} }
+                        strong { "{size} × {groups} = {size * groups}" }
+                        }
+                        div { class: "table-concept-pattern",
+                        div { class: "table-group-diagram", aria_hidden: "true",
+                            if groups == 0 {
+                                span { class: "table-zero", "∅" }
+                            }
+                            for group in 0..groups {
+                                if group > 0 { span { "+" } }
+                                span { class: if group + 1 == groups { "table-object-group table-new-group" } else { "table-object-group" },
+                                    for dot in 0..size { span { key: "{dot}", class: "table-dot" } }
+                                }
+                            }
+                        }
+                        p { class: "table-total", {language.text("कुल", "Total")} " = {size * groups}" }
+                        if groups == 0 {
+                            p { {language.text("कोई समूह नहीं, इसलिए कोई वस्तु नहीं।", "No groups means no objects.")} }
+                        }
+                        if groups > 0 { p { class: "table-addition",
+                            {(0..groups).map(|_| size.to_string()).collect::<Vec<_>>().join(" + ")}
+                            " = {size * groups}"
+                        } }
+                        if groups > 0 {
+                            p { class: "table-from-previous",
+                                {language.text("पिछला कुल", "Previous total")}
+                                " {size * (groups - 1)} + {size} = {size * groups}"
+                            }
+                            p { class: "table-count-on",
+                                {language.text("पिछले कुल से आगे गिनो: ", "Count on from the previous total: ")}
+                                {(size * (groups - 1)..=size * groups).map(|number| number.to_string()).collect::<Vec<_>>().join(" → ")}
+                            }
+                        }
+                        }
+                    }
+                }
+            }
+            p { {match language {
+                Language::Hindi => format!("हर नया समूह जोड़ने पर कुल में {size} और जुड़ते हैं।"),
+                Language::English => format!("Each new group adds {size} more to the total."),
+            }} }
+        }
+    }
+}
+
+#[component]
+fn TableActivity(
+    size: u8,
+    writing: bool,
+    initial: Ink,
+    scale: PaperScale,
+    language: Language,
+    on_input: EventHandler<Input>,
+) -> Element {
+    let mut completed = use_signal(|| [false; 10]);
+    let mut missed = use_signal(|| false);
+    let prompt = match language {
+        Language::Hindi => format!("{size} का पूरा पहाड़ा: ×1 से ×10"),
+        Language::English => format!("The complete {size} times table: ×1 to ×10"),
+    };
+    rsx! {
+        TableConcept { size, language }
+        section { class: "table-sheet",
+        if writing {
+            SolveActivity { prompt,
+                solution: (1..=10).map(|groups| format!("{size} × {groups} = {}", size * groups)).collect::<Vec<_>>().join("\n"),
+                answer: (1..=10).map(|groups| size * groups).collect::<Vec<_>>(),
+                helper: None, notebook: false, table_size: Some(size), lines: 10, initial, helper_draft: HelperDraft::default(), scale, language,
+                on_ink: move |ink| on_input.call(Input::Draft(ink)), on_input }
+        } else {
+            h2 { "{prompt}" }
+            p { {language.text("सभी दस जवाब भरो और जाँचो।", "Fill in and check all ten answers.")} }
+            div { class: "table-practice",
+                for groups in 1u8..=10 {
+                    NumberCheck { key: "{groups}", label: format!("{size} × {groups} ="),
+                        expected: vec![size * groups], language,
+                        on_correct: move |_| completed.write()[usize::from(groups - 1)] = true,
+                        on_wrong: move |_| missed.set(true) }
+                }
+            }
+            if completed().iter().all(|done| *done) {
+                CorrectAnswer { language, on_advance: move |_| on_input.call(Input::Answer(missed())) }
+            }
+        }
+        }
+    }
+}
+
+#[component]
 pub fn Activity(
     kind: Kind,
+    #[props(default)] picture: Option<String>,
     initial: Ink,
     scale: PaperScale,
     #[props(default)] recall: bool,
@@ -287,7 +396,11 @@ pub fn Activity(
     let on_done = move |missed| on_input.call(Input::Answer(missed));
     let on_ink = move |ink| on_input.call(Input::Draft(ink));
     let on_written = move |ink| on_input.call(Input::Submit(ink));
+    let picture_groups = if recall { None } else { crate::pictures::groups(&kind) };
     let content = match kind {
+        Kind::Table { size, writing } => rsx! {
+            TableActivity { size, writing, initial, scale, language, on_input }
+        },
         Kind::Choice(question) => {
             rsx! { Choice { passage: "", question, recall, language, on_done } }
         }
@@ -310,7 +423,11 @@ pub fn Activity(
             question,
         } => rsx! {
             div { class: "count-objects", aria_label: language.text("गिनने के लिए चित्र", "Objects to count"),
-                for index in 0..quantity { span { key: "{index}", "{visual}" } }
+                for index in 0..quantity { span { key: "{index}",
+                    if visual == "🍎" { crate::pictures::Image { id: "apple".to_string(), language, compact: true } }
+                    else if visual == "🔵" { crate::pictures::Image { id: "ball".to_string(), language, compact: true } }
+                    else { "{visual}" }
+                } }
             }
             Choice { passage: "", question, language, on_done }
         },
@@ -369,5 +486,14 @@ pub fn Activity(
             SolveActivity { prompt, solution, answer, helper, notebook, lines, initial, helper_draft, scale, language, on_ink, on_input }
         },
     };
-    rsx! { div { class: if handwriting { "handwriting-content" } else { "" }, {content} } }
+    rsx! { div { class: if handwriting { "handwriting-content" } else { "" },
+        if let Some(id) = picture { crate::pictures::Image { id, language } }
+        if let Some((groups,size)) = picture_groups {
+            div { class: "picture-groups", aria_label: language.text("बराबर समूह", "Equal groups"),
+                for group in 0..groups { div { key: "{group}",
+                    for index in 0..size { crate::pictures::Image { key: "{index}", id: "ball".to_string(), language, compact: true } }
+                } }
+            }
+        }
+        {content} } }
 }

@@ -1,0 +1,173 @@
+{
+  "tool": "OpenAI built-in imagegen",
+  "prompts": [
+    {
+      "id": "apple",
+      "prompt": "Create one realistic educational flashcard photograph of a single red apple, isolated on a plain warm white background. Square composition, centered entire object, soft natural light, no text, no lettering, no border, no extra objects. Clear and easily recognizable for a young child."
+    },
+    {
+      "id": "banana",
+      "prompt": "One realistic educational flashcard photograph: one ripe yellow banana. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "mango",
+      "prompt": "One realistic educational flashcard photograph: one ripe mango. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "dog",
+      "prompt": "One realistic educational flashcard photograph: one friendly dog sitting. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "cat",
+      "prompt": "One realistic educational flashcard photograph: one domestic cat sitting. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "cow",
+      "prompt": "One realistic educational flashcard photograph: one cow standing. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "eating",
+      "prompt": "One realistic educational flashcard photograph: a child eating rice with a spoon at a small table. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "reading",
+      "prompt": "One realistic educational flashcard photograph: a child reading an open book. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "playing",
+      "prompt": "One realistic educational flashcard photograph: a child playing with a ball. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "car",
+      "prompt": "One realistic educational flashcard photograph: one small red car. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "bus",
+      "prompt": "One realistic educational flashcard photograph: one school bus. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "train",
+      "prompt": "One realistic educational flashcard photograph: one passenger train. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "parrot",
+      "prompt": "One realistic educational flashcard photograph: one green parrot perched. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "crow",
+      "prompt": "One realistic educational flashcard photograph: one black crow perched. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "sparrow",
+      "prompt": "One realistic educational flashcard photograph: one house sparrow perched. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "doctor",
+      "prompt": "One realistic educational flashcard photograph: a doctor wearing a stethoscope. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "teacher",
+      "prompt": "One realistic educational flashcard photograph: a teacher holding an open book. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "farmer",
+      "prompt": "One realistic educational flashcard photograph: a farmer holding a small basket of vegetables. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "summer",
+      "prompt": "One realistic educational flashcard photograph: a sunny summer scene, one child wearing a sun hat beside a tree. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "rain",
+      "prompt": "One realistic educational flashcard photograph: a child outdoors holding an umbrella in rain. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "winter",
+      "prompt": "One realistic educational flashcard photograph: a child outdoors in a winter coat and woollen hat. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "kitchen",
+      "prompt": "One realistic educational flashcard photograph: a simple home kitchen with a stove and cooking pot. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "bathroom",
+      "prompt": "One realistic educational flashcard photograph: a simple bathroom with bathtub and sink. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "bank",
+      "prompt": "One realistic educational flashcard photograph: a small bank exterior with a cash machine, no signs or lettering. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "bin",
+      "prompt": "One realistic educational flashcard photograph: one rubbish bin with a piece of paper beside it. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "pencil",
+      "prompt": "One realistic educational flashcard photograph: one sharpened yellow pencil. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "ball",
+      "prompt": "One realistic educational flashcard photograph: one colourful ball. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "cup",
+      "prompt": "One realistic educational flashcard photograph: one drinking cup. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "waiting",
+      "prompt": "One realistic educational flashcard photograph: a child waiting calmly beside an adult holding a small sand timer. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "greeting",
+      "prompt": "One realistic educational flashcard photograph: two people waving hello to each other. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "delivery",
+      "prompt": "One realistic educational flashcard photograph: a child handing a ball to his father. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "request",
+      "prompt": "One realistic educational flashcard photograph: a child pointing to a ball beside an attentive adult. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "family",
+      "prompt": "One realistic educational flashcard photograph: a mother and father with a child, sitting together. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "book",
+      "prompt": "One realistic educational flashcard photograph: one closed red book. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "bag",
+      "prompt": "One realistic educational flashcard photograph: one school backpack. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "water",
+      "prompt": "One realistic educational flashcard photograph: one clear drinking glass filled with water. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "milk",
+      "prompt": "One realistic educational flashcard photograph: one clear glass of milk. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "rice",
+      "prompt": "One realistic educational flashcard photograph: one bowl of cooked rice. Uncluttered plain warm white background, soft natural light, clear simple composition with whole subject visible, age-appropriate everyday Indian context for people and places. Square image. No text, no lettering, no labels, no border, no montage."
+    },
+    {
+      "id": "under",
+      "prompt": "Realistic educational photo showing a pair of shoes clearly UNDER a small wooden bench. Whole objects visible. Simple plain warm white background, clear spatial relationship, no extra objects. Square. No text, labels, letters or arrows."
+    },
+    {
+      "id": "near",
+      "prompt": "Realistic educational photo showing a rubbish bin NEAR a closed door. Whole objects visible. Simple plain warm white background, clear spatial relationship, no extra objects. Square. No text, labels, letters or arrows."
+    },
+    {
+      "id": "between",
+      "prompt": "Realistic educational photo showing one ball clearly BETWEEN two school backpacks. Whole objects visible. Simple plain warm white background, clear spatial relationship, no extra objects. Square. No text, labels, letters or arrows."
+    },
+    {
+      "id": "behind",
+      "prompt": "Realistic educational photo showing two children in a queue facing right, one child BEHIND the other. Whole objects visible. Simple plain warm white background, clear spatial relationship, no extra objects. Square. No text, labels, letters or arrows."
+    }
+  ]
+}

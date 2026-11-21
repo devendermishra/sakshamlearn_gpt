@@ -1,0 +1,296 @@
+[
+  {
+    "id": "apple",
+    "en": "Apple",
+    "hi": "सेब",
+    "category": "fruit",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "banana",
+    "en": "Banana",
+    "hi": "केला",
+    "category": "fruit",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "mango",
+    "en": "Mango",
+    "hi": "आम",
+    "category": "fruit",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "dog",
+    "en": "Dog",
+    "hi": "कुत्ता",
+    "category": "animal",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "cat",
+    "en": "Cat",
+    "hi": "बिल्ली",
+    "category": "animal",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "cow",
+    "en": "Cow",
+    "hi": "गाय",
+    "category": "animal",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "eating",
+    "en": "Eating",
+    "hi": "खाना",
+    "category": "action",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "reading",
+    "en": "Reading",
+    "hi": "पढ़ना",
+    "category": "action",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "playing",
+    "en": "Playing",
+    "hi": "खेलना",
+    "category": "action",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "car",
+    "en": "Car",
+    "hi": "कार",
+    "category": "transport",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "bus",
+    "en": "Bus",
+    "hi": "बस",
+    "category": "transport",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "train",
+    "en": "Train",
+    "hi": "रेलगाड़ी",
+    "category": "transport",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "parrot",
+    "en": "Parrot",
+    "hi": "तोता",
+    "category": "bird",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "crow",
+    "en": "Crow",
+    "hi": "कौआ",
+    "category": "bird",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "sparrow",
+    "en": "Sparrow",
+    "hi": "गौरैया",
+    "category": "bird",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "doctor",
+    "en": "Doctor",
+    "hi": "डॉक्टर",
+    "category": "profession",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "teacher",
+    "en": "Teacher",
+    "hi": "शिक्षक",
+    "category": "profession",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "farmer",
+    "en": "Farmer",
+    "hi": "किसान",
+    "category": "profession",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "summer",
+    "en": "Summer",
+    "hi": "गर्मी",
+    "category": "season",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "rain",
+    "en": "Rainy season",
+    "hi": "बरसात",
+    "category": "season",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "winter",
+    "en": "Winter",
+    "hi": "सर्दी",
+    "category": "season",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "kitchen",
+    "en": "Kitchen",
+    "hi": "रसोई",
+    "category": "place",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "bathroom",
+    "en": "Bathroom",
+    "hi": "बाथरूम",
+    "category": "place",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "bank",
+    "en": "Bank",
+    "hi": "बैंक",
+    "category": "place",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "bin",
+    "en": "Bin",
+    "hi": "कूड़ेदान",
+    "category": "object",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "pencil",
+    "en": "Pencil",
+    "hi": "पेंसिल",
+    "category": "object",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "ball",
+    "en": "Ball",
+    "hi": "गेंद",
+    "category": "object",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "cup",
+    "en": "Cup",
+    "hi": "कप",
+    "category": "object",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "waiting",
+    "en": "Waiting",
+    "hi": "इंतज़ार",
+    "category": "social",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "greeting",
+    "en": "Greeting",
+    "hi": "अभिवादन",
+    "category": "social",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "delivery",
+    "en": "Giving a ball to Papa",
+    "hi": "पापा को गेंद देना",
+    "category": "social",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "request",
+    "en": "Asking for a ball",
+    "hi": "गेंद माँगना",
+    "category": "social",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "family",
+    "en": "Family",
+    "hi": "परिवार",
+    "category": "social",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "book",
+    "en": "Book",
+    "hi": "किताब",
+    "category": "object",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "bag",
+    "en": "Bag",
+    "hi": "बस्ता",
+    "category": "object",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "water",
+    "en": "Water",
+    "hi": "पानी",
+    "category": "object",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "milk",
+    "en": "Milk",
+    "hi": "दूध",
+    "category": "object",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "rice",
+    "en": "Rice",
+    "hi": "चावल",
+    "category": "object",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "under",
+    "en": "Under",
+    "hi": "नीचे",
+    "category": "position",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "near",
+    "en": "Near",
+    "hi": "पास",
+    "category": "position",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "between",
+    "en": "Between",
+    "hi": "बीच",
+    "category": "position",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  },
+  {
+    "id": "behind",
+    "en": "Behind",
+    "hi": "पीछे",
+    "category": "position",
+    "source": "Generated with OpenAI imagegen; realistic educational picture"
+  }
+]

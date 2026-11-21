@@ -71,6 +71,9 @@ impl Topic {
             return Err("Add at least one exercise.".into());
         }
         for (index, exercise) in self.exercises.iter().enumerate() {
+            if exercise.picture.as_ref().is_some_and(|id| crate::pictures::card(id).is_none()) {
+                return Err(format!("Choose a bundled picture for exercise {}.", index + 1));
+            }
             if !exercise.kind.valid() {
                 return Err(format!(
                     "Complete all required fields in exercise {}.",
@@ -123,6 +126,8 @@ impl Group {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Exercise {
     pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub picture: Option<String>,
     pub kind: Kind,
 }
 
@@ -158,6 +163,7 @@ impl Paper {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Kind {
+    Table { size: u8, writing: bool },
     Choice(Question),
     Picture(Picture, Question),
     Read(String, Question),
@@ -268,6 +274,8 @@ pub struct Writing<'a> {
 impl Kind {
     pub fn writing(&self, ruled_paper: Paper) -> Option<Writing<'_>> {
         let (label, model, lines, paper, solution) = match self {
+            Self::Table { writing: true, .. } => ("×1–×10", "", 10, Paper::Digit, None),
+            Self::Table { writing: false, .. } => return None,
             Self::Trace { model, paper, .. } => (model.as_str(), model.as_str(), 1, *paper, None),
             Self::Compose(prompt, lines, _) | Self::Revise(prompt, lines) => {
                 (prompt.as_str(), "", *lines, ruled_paper, None)
@@ -310,6 +318,7 @@ impl Kind {
     fn valid(&self) -> bool {
         let filled = |text: &str| !text.trim().is_empty();
         match self {
+            Self::Table { size, .. } => (1..=10).contains(size),
             Self::Choice(question) | Self::Picture(_, question) => question.valid(),
             Self::Read(text, question)
             | Self::Listen(text, question)

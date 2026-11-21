@@ -196,7 +196,10 @@ pub fn TracingPractice(
                             {language.text("‹ सभी लिखाई अभ्यास", "‹ All tracing practice")}
                         }
                         h1 { "{heading}" }
-                        if let Some(model) = models.get(index) {
+                        if let Set::Table(size) = group {
+                            crate::activity::TableConcept { size, language }
+                            TableTraceSheet { size, grade, scale, language, directory: directory.clone() }
+                        } else if let Some(model) = models.get(index) {
                             label { "{choose}"
                                 select { value: "{current}", onchange: move |event| {
                                     if let Ok(next) = event.value().parse::<usize>() {
@@ -252,7 +255,73 @@ pub fn TracingPractice(
 }
 
 #[component]
+fn TableTraceSheet(size: u8, grade: u8, scale: PaperScale, language: Language, directory: PathBuf) -> Element {
+    let path = directory.join(format!("trace-math-{grade}-table-{size}-sheet.json"));
+    let initial = use_hook(|| load_table_sheet(&directory, &path, grade, size).map_err(|error| error.to_string()));
+    let mut draft = use_signal(|| initial.clone().unwrap_or_default());
+    let mut failed = use_signal(|| false);
+    let save = use_callback(move |ink: Ink| {
+        failed.set(state::save_local(&path, &ink).is_err());
+        draft.set(ink);
+    });
+    rsx! {
+        section { class: "table-sheet table-tracing-sheet",
+            p { {language.text("बाईं ओर बिंदियों पर लिखो। दाईं ओर खुद लिखो। हर पूरी संख्या एक खाने में लिखो।", "Trace on the left. Write on your own on the right. Keep each whole number in one box.")} }
+            if let Ok(initial) = initial {
+                InkPad { id: "table-trace-ink", model: "", initial, paper: Paper::Digit, scale, language,
+                    lines: 10, table_trace: Some(size), on_ink: move |ink| save.call(ink) }
+                if failed() {
+                    p { role: "alert", {language.text("लिखाई सहेजी नहीं गई।", "Your writing could not be saved.")} }
+                    button { onclick: move |_| save.call(draft()), {language.text("फिर सहेजें", "Try saving again")} }
+                }
+            } else {
+                p { role: "alert", {language.text("सहेजी लिखाई नहीं खुली।", "Your saved writing could not be opened.")} }
+            }
+        }
+    }
+}
+
+fn load_table_sheet(directory: &std::path::Path, path: &std::path::Path, grade: u8, size: u8) -> std::io::Result<Ink> {
+    let old_sheet: Option<Ink> = if path.exists() { Some(state::load_local(path)?) } else { None };
+    if let Some(sheet) = &old_sheet {
+        if sheet.len() == 100 { return Ok(sheet.clone()); }
+        if sheet.len() != 20 * format!("{size}×10={}", size * 10).chars().count() {
+            return Err(std::io::Error::other("Unexpected table sheet size"));
+        }
+    }
+    let mut ink = vec![Vec::new(); 100];
+    for groups in 1..=10 {
+        let tokens = [size.to_string(), "×".into(), groups.to_string(), "=".into(), (size * groups).to_string()];
+        let (previous, old_width) = if let Some(sheet) = &old_sheet {
+            let width = sheet.len() / 20;
+            let start = (usize::from(groups) - 1) * 2 * width;
+            (sheet[start..start + 2 * width].to_vec(), width)
+        } else {
+            (state::load_local::<Ink>(&directory.join(format!("trace-math-{grade}-table-{size}-{groups}.json")))?,
+             tokens.iter().map(|token| token.chars().count()).sum())
+        };
+        for side in 0..2 {
+            let mut column = 0;
+            for (token_index, token) in tokens.iter().enumerate() {
+                let digits = token.chars().count();
+                let target = &mut ink[((usize::from(groups) - 1) * 2 + side) * 5 + token_index];
+                for digit in 0..digits {
+                    if let Some(cell) = previous.get(side * old_width + column + digit) {
+                        target.extend(cell.iter().map(|stroke| stroke.iter().map(|point|
+                            [(digit as f32 + point[0]) / digits as f32, point[1]]
+                        ).collect()));
+                    }
+                }
+                column += digits;
+            }
+        }
+    }
+    Ok(ink)
+}
+
+#[component]
 fn TraceModel(
+    #[props(default = "practice-trace-ink".to_string())] id: String,
     model: String,
     paper: Paper,
     scale: PaperScale,
@@ -270,7 +339,7 @@ fn TraceModel(
         section { class: "trace-model",
             h2 { "{model}" }
             if let Ok(initial) = initial {
-                InkPad { id: "practice-trace-ink", model, initial, paper, scale, language, single_trace: true,
+                InkPad { id, model, initial, paper, scale, language, single_trace: true,
                     on_ink: move |ink| save.call(ink) }
                 if failed() {
                     p { role: "alert", {language.text("लिखाई सहेजी नहीं गई।", "Your writing could not be saved.")} }
@@ -286,6 +355,43 @@ fn TraceModel(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn table_sheet_preserves_old_trace_and_copy_rows_and_reopens_saved_sheet() {
+        let directory = tempfile::tempdir().unwrap();
+        let stroke = vec![vec![[0.2, 0.3], [0.6, 0.7]]];
+        let mut old: Ink = vec![Vec::new(); 10];
+        old[0] = stroke.clone();
+        old[9] = stroke.clone();
+        state::save_local(&directory.path().join("trace-math-2-table-3-1.json"), &old).unwrap();
+        let path = directory.path().join("trace-math-2-table-3-sheet.json");
+        let sheet = load_table_sheet(directory.path(), &path, 2, 3).unwrap();
+        assert_eq!(sheet.len(), 100);
+        assert_eq!(sheet[0], stroke);
+        assert_eq!(sheet[9], stroke);
+        assert_eq!(sheet.iter().filter(|cell| !cell.is_empty()).count(), 2);
+        state::save_local(&path, &sheet).unwrap();
+        assert_eq!(load_table_sheet(directory.path(), &path, 2, 3).unwrap(), sheet);
+    }
+
+    #[test]
+    fn table_sheet_merges_saved_digits_into_whole_number_boxes() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("trace-math-2-table-10-sheet.json");
+        let mut old: Ink = vec![Vec::new(); 180];
+        for index in [162, 163, 168, 169, 170] {
+            old[index] = vec![vec![[0.2, 0.3], [0.6, 0.7]]];
+        }
+        state::save_local(&path, &old).unwrap();
+        let sheet = load_table_sheet(directory.path(), &path, 2, 10).unwrap();
+        assert_eq!(sheet.len(), 100);
+        assert_eq!(sheet[90].len(), 2);
+        assert_eq!(sheet[90][0][0], [0.1, 0.3]);
+        assert_eq!(sheet[90][1][0], [0.6, 0.3]);
+        assert_eq!(sheet[94].len(), 3);
+        assert!(sheet[94][0][0][0] < sheet[94][1][0][0]);
+        assert!(sheet[94][1][0][0] < sheet[94][2][0][0]);
+    }
 
     #[test]
     fn catalog_covers_both_classes_and_full_tables() {

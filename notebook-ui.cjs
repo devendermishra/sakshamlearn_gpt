@@ -335,12 +335,11 @@ async function drawIn(page, cell, fraction) {
         assert.equal(await page.locator("#practice-trace-ink canvas").count(), 6);
         await button(page, "‹ All tracing practice").click();
         await button(page, "10 times table").click();
-        await page.getByLabel("Choose a model").selectOption("9");
-        await page.getByRole("heading", {name: "10×10=100", exact: true}).waitFor();
-        const fact = page.locator("#practice-trace-ink canvas");
-        await fact.nth(17).waitFor();
-        assert.equal(await fact.count(), 18);
-        const firstRow = fact.nth(5);
+        assert.equal(await page.getByLabel("Choose a model").count(), 0);
+        const fact = page.locator("#table-trace-ink canvas");
+        await fact.nth(99).waitFor();
+        assert.equal(await fact.count(), 100);
+        const firstRow = fact.nth(9 * 10 + 3);
         const hasModel = canvas => canvas.evaluate(node =>
             node.getContext("2d").getImageData(0, 0, node.width, node.height).data
                 .some((value, index) => index % 4 === 3 && value > 0));

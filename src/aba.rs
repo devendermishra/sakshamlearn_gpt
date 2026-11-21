@@ -1,4 +1,5 @@
 mod home_plans;
+mod practice;
 
 use crate::{
     language::Language,
@@ -13,8 +14,10 @@ pub fn AbaLearning(
     name: &'static str,
     data: Signal<State>,
     commit: Callback<State>,
+    directory: std::path::PathBuf,
 ) -> Element {
-    let mut checklist = use_signal(|| false);
+    let mut tab = use_signal(|| 0u8);
+    let mut selected = use_signal(|| practice::last_activity(&directory));
     let mut today = use_signal(india_date);
     use_future(move || async move {
         let mut clock = document::eval(
@@ -36,13 +39,17 @@ pub fn AbaLearning(
         section { "data-aba-learning": "true", lang: language.code(),
             h1 { "{name}" }
             nav { class: "actions", aria_label: name,
-                button { class: if !checklist() { "primary" } else { "" },
-                    aria_pressed: !checklist(), onclick: move |_| checklist.set(false), {language.text("कैलेंडर", "Calendar")} }
-                button { class: if checklist() { "primary" } else { "" },
-                    aria_pressed: checklist(), onclick: move |_| checklist.set(true), {checklist_title(language)} }
+                button { class: if tab() == 0 { "primary" } else { "" },
+                    aria_pressed: tab() == 0, onclick: move |_| tab.set(0), {language.text("कैलेंडर", "Calendar")} }
+                button { class: if tab() == 1 { "primary" } else { "" },
+                    aria_pressed: tab() == 1, onclick: move |_| tab.set(1), {checklist_title(language)} }
+                button { class: if tab() == 2 { "primary" } else { "" }, aria_pressed: tab() == 2, onclick: move |_| tab.set(2), {language.text("चित्र कार्ड", "Flashcards")} }
+                button { class: if tab() == 3 { "primary" } else { "" }, aria_pressed: tab() == 3, onclick: move |_| tab.set(3), {language.text("अभ्यास", "Exercises")} }
             }
-            if checklist() {
-                Checklist { date, language, data, commit }
+            if tab() == 1 {
+                Checklist { date, language, data, commit, on_practice: move |id| { selected.set(id); tab.set(3); } }
+            } else if tab() == 2 || tab() == 3 {
+                practice::Practice { directory, language, selected: selected(), flashcards: tab() == 2, on_select: move |id| selected.set(id) }
             } else {
                 Calendar { key: "{date}", today: date, language }
             }
@@ -224,6 +231,7 @@ fn Checklist(
     language: Language,
     data: Signal<State>,
     commit: Callback<State>,
+    on_practice: EventHandler<String>,
 ) -> Element {
     let snapshot = data.read();
     let completed = snapshot.aba_practice.get(&date.to_string());
@@ -262,6 +270,7 @@ fn Checklist(
                                         small { {language.text(item.hindi_prompt, item.prompt)} }
                                     }
                                 }
+                                button { onclick: move |_| on_practice.call(item.id.to_string()), {language.text("अभ्यास खोलें", "Open practice")} }
                             }
                         }
                     }

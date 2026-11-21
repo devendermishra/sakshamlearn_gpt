@@ -68,12 +68,16 @@ pub fn InkPad(
     #[props(default)] readonly: bool,
     #[props(default)] paper: Paper,
     #[props(default)] notebook: Option<ArithmeticHelp>,
+    #[props(default)] table_size: Option<u8>,
+    #[props(default)] table_trace: Option<u8>,
     #[props(default)] language: Language,
     #[props(default)] done_label: Option<&'static str>,
     #[props(default)] on_ink: Option<EventHandler<Ink>>,
     #[props(default)] on_done: Option<EventHandler<Ink>>,
 ) -> Element {
-    let equation_width = if paper == Paper::Digit && single_trace {
+    let equation_width = if table_trace.is_some() {
+        5
+    } else if paper == Paper::Digit && single_trace {
         model.chars().count()
     } else {
         0
@@ -83,7 +87,7 @@ pub fn InkPad(
         (Paper::Digit, [b'0'..=b'9', b'0'..=b'9', b'0'..=b'9']) => 3,
         _ => 0,
     };
-    let tracing = !model.is_empty();
+    let tracing = !model.is_empty() || table_trace.is_some();
     let line_trace = tracing && single_trace && paper != Paper::Digit;
     let english_paper = paper == Paper::English;
     let notes = paper.regrouping_cells();
@@ -100,12 +104,14 @@ pub fn InkPad(
         "englishPaper": english_paper, "digitWidth": digit_width,
         "sentenceWidth": 145.0 * scale.horizontal,
         "blankColumns": blank_columns, "noteColumns": notes, "lines": lines,
+        "tableTrace": table_trace,
         "allowMouse": !cfg!(target_os = "android"), "english": language == Language::English,
     });
     use_effect(move || {
         let script = format!(
-            "const config = {config};\n{}\n{}",
+            "const config = {config};\n{}\n{}\n{}",
             include_str!("trace.js"),
+            include_str!("trace_guide.js"),
             include_str!("ink.js")
         );
         let mut eval = document::eval(&script);
@@ -137,6 +143,7 @@ pub fn InkPad(
         _ => (DIGIT_CELL_MM, DIGIT_CELL_MM),
     };
     let columns = match (paper, tracing) {
+        _ if table_trace.is_some() => 2 * equation_width,
         _ if line_trace => 1,
         _ if equation_width > 0 => equation_width,
         (Paper::Digit, true) if digit_width > 0 => 2 * digit_width,
@@ -186,7 +193,16 @@ pub fn InkPad(
             } else if tracing && paper == Paper::Digit {
                 p { class: "instructions", {language.text("पहले पाँच बिंदियों वाले खाने, फिर पाँच खाली खाने", "Trace the first five squares, then write in the five blank squares.")} }
             }
+            if tracing {
+                p { class: "trace-direction-key", {language.text("नीले तीर की दिशा में बिंदियों पर लिखो।", "Follow the dots in the direction of the blue arrows.")} }
+            }
             div { class: if notebook.is_some() { "ink-scroll notebook-stack" } else { "ink-scroll" },
+                if table_trace.is_some() {
+                    div { class: "table-trace-headings",
+                        span { {language.text("बिंदियों पर लिखो", "Trace")} }
+                        span { {language.text("खुद लिखो", "Write on your own")} }
+                    }
+                }
                 if notes > 0 { div { class: "regroup-grid" } }
                 if let Some(problem) = notebook {
                     {
@@ -203,7 +219,16 @@ pub fn InkPad(
                     }
                     div { class: "notebook-rule" }
                 }
-                div { class: "ink-grid" }
+                if let Some(size) = table_size {
+                    div { class: "table-writing-grid",
+                        div { class: "table-writing-labels",
+                            for groups in 1..=10 { div { "{size} × {groups} =" } }
+                        }
+                        div { class: "ink-grid" }
+                    }
+                } else {
+                    div { class: "ink-grid" }
+                }
                 if notebook.is_some() { div { class: "notebook-rule" } }
             }
             if !readonly {

@@ -92,7 +92,7 @@ pub fn NumberCheck(
                 _ => result.set(Check::Invalid),
             }
         },
-            NumericField { label, value: input(), language, limit: 32,
+            NumericField { label, value: input(), language, limit: (count * 5).max(32),
                 keys: if count == 1 { Keys::Whole } else { Keys::List },
                 disabled: result() == Check::Correct,
                 on_change: move |value| { input.set(value); result.set(Check::Waiting); }

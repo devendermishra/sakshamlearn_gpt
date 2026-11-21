@@ -5471,7 +5471,8 @@
         "model": "दूध",
         "kind": "trace",
         "prompt": "दूध",
-        "context": "मात्रा लगाकर शब्द लिखो। दध"
+        "context": "मात्रा लगाकर शब्द लिखो। दध",
+        "picture": "milk"
       },
       {
         "model": "सब्ज़ी",
@@ -5483,7 +5484,8 @@
         "model": "पानी",
         "kind": "trace",
         "prompt": "पानी",
-        "context": "मात्रा लगाकर शब्द लिखो। पन"
+        "context": "मात्रा लगाकर शब्द लिखो। पन",
+        "picture": "water"
       },
       {
         "model": "फल",
@@ -9688,7 +9690,8 @@
         "answer": "83",
         "kind": "number",
         "prompt": "A basket has 47 red apples and 36 green apples. How many apples are there altogether?",
-        "key": "83"
+        "key": "83",
+        "picture": "apple"
       },
       {
         "kind": "write",
@@ -11443,7 +11446,8 @@
       },
       {
         "kind": "adult",
-        "prompt": "Why does the ball roll?"
+        "prompt": "Why does the ball roll?",
+        "picture": "ball"
       }
     ]
   },
@@ -12309,7 +12313,8 @@
     "tasks": [
       {
         "kind": "write",
-        "prompt": "Share 6 apples among 2 children. Each gets ___"
+        "prompt": "Share 6 apples among 2 children. Each gets ___",
+        "picture": "apple"
       },
       {
         "kind": "write",

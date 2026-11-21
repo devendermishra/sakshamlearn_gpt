@@ -7,7 +7,7 @@ pub fn topics(language: Language, lessons: &[Topic]) -> Vec<Topic> {
         language.text("लिखकर हल करो", "Solve in writing"),
     );
     group.separate_page = true;
-    let practice = |grade, id, title, problems, review_from| {
+    let practice = |grade, id: &str, title: &str, problems, review_from: &str| {
         let review = lessons
             .iter()
             .find(|lesson| lesson.id == review_from)
@@ -28,7 +28,7 @@ pub fn topics(language: Language, lessons: &[Topic]) -> Vec<Topic> {
     let notebook_add = language.text("कॉपी जैसा जोड़", "Notebook addition");
     let notebook_subtract = language.text("कॉपी जैसा घटाव", "Notebook subtraction");
 
-    vec![
+    let mut topics = vec![
         practice(1, "notebook-add-1", notebook_add,
             notebook_problems([(3, 4), (2, 5), (5, 3)], Operation::Add, false, language), "add-to-twenty"),
         practice(1, "notebook-subtract-1", notebook_subtract,
@@ -96,14 +96,21 @@ pub fn topics(language: Language, lessons: &[Topic]) -> Vec<Topic> {
             ), 3, &[34]), 52, 18, Operation::Subtract),
             with_help(solve(language.text("किताब में 61 पन्ने हैं। सीमा ने 24 पढ़े। कितने पन्ने बाकी हैं?", "A book has 61 pages. Seema read 24. How many pages are left?"), "61 − 24 = 37", 3, &[37]), 61, 24, Operation::Subtract),
         ], "subtract-exchange-ten"),
-        practice(2, "write-tables-1-to-5", language.text("पहाड़े 1 से 5", "Tables 1 to 5"), table_problems([(1, 9), (2, 6), (3, 5), (4, 8), (5, 10)]), "table-3"),
-        practice(2, "write-tables-6-to-10", language.text("पहाड़े 6 से 10", "Tables 6 to 10"), table_problems([(6, 4), (7, 8), (8, 6), (9, 3), (10, 10)]), "table-8"),
         practice(2, "write-division-2", language.text("घटाकर भाग दो", "Divide by repeated subtraction"), vec![
             solve(language.text("12 ÷ 3 = __। हर बार 3 घटाओ और गिनो।", "12 ÷ 3 = __. Subtract 3 each time and count the steps."), "12 → 9 → 6 → 3 → 0. 12 ÷ 3 = 4", 3, &[4]),
             solve(language.text("20 ÷ 5 = __। हर बार 5 घटाओ और गिनो।", "20 ÷ 5 = __. Subtract 5 each time and count the steps."), "20 → 15 → 10 → 5 → 0. 20 ÷ 5 = 4", 3, &[4]),
             solve(language.text("18 पेंसिलों के 6-6 के समूह बनाओ। बार-बार घटाकर समूहों की संख्या लिखो।", "Put 18 pencils into groups of 6. Use repeated subtraction to find the number of groups."), "18 → 12 → 6 → 0. 18 ÷ 6 = 3", 3, &[3]),
         ], "division-take-away"),
-    ]
+    ];
+    topics.extend((1..=10).map(|size| {
+        let title = match language {
+            Language::Hindi => format!("{size} का पूरा पहाड़ा लिखो"),
+            Language::English => format!("Write the {size} times table"),
+        };
+        practice(2, &format!("write-table-{size}"), &title,
+            vec![Kind::Table { size, writing: true }], &format!("table-{size}"))
+    }));
+    topics
 }
 
 pub(super) fn solve(prompt: &str, solution: &str, lines: usize, answer: &[u8]) -> Kind {
@@ -215,13 +222,6 @@ fn with_help(mut problem: Kind, left: u8, right: u8, operation: Operation) -> Ki
         });
     }
     problem
-}
-
-fn table_problems(facts: [(u8, u8); 5]) -> Vec<Kind> {
-    facts
-        .into_iter()
-        .map(|(left, right)| arithmetic(left, '×', right, left * right, 2))
-        .collect()
 }
 
 fn order(language: Language, unsorted: &str, sorted: &[u8], descending: bool) -> Kind {

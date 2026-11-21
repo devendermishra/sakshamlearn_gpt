@@ -26,6 +26,8 @@ struct Sheet {
 struct Task {
     prompt: String,
     #[serde(default)]
+    picture: Option<String>,
+    #[serde(default)]
     context: String,
     #[serde(default)]
     hint: String,
@@ -262,6 +264,7 @@ fn Exercise(
             p { class: "worksheet-action", "{verb}" }
             if !task.context.is_empty() { p { class: "worksheet-context", lang: text_language(&task.context, language).code(), "{task.context}" } }
             h2 { lang: prompt_language.code(), "{task.prompt}" }
+            if let Some(id) = &task.picture { crate::pictures::Image { id: id.clone(), language } }
             details { class: "learner-help",
                 summary { {language.text("मदद", "Help")} }
                 p { "{hint}" }
@@ -395,6 +398,7 @@ mod tests {
             packs.insert((&sheet.subject, &sheet.pack));
             for task in &sheet.tasks {
                 assert!(!task.prompt.is_empty(), "empty task in {}", sheet.id);
+                if let Some(id)=&task.picture { assert!(crate::pictures::card(id).is_some()); }
                 match &task.action {
                     Action::Choice { options, correct } => {
                         assert!(options.len() >= 2 && *correct < options.len());

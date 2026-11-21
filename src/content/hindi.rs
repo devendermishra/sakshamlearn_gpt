@@ -55,13 +55,14 @@ macro_rules! question {
 
 macro_rules! writing {
     ($($id:literal => $glyph:expr),+ $(,)?) => {
-        vec![$(Exercise { id: $id.into(), kind: trace($glyph) }),+]
+        vec![$(Exercise { picture: None, id: $id.into(), kind: trace($glyph) }),+]
     };
 }
 
 fn story() -> Vec<Exercise> {
     vec![
         Exercise {
+            picture: None,
             id: "home".into(),
             kind: Kind::Read(
                 "नीमा स्कूल से घर आई। घर पर दादी थीं।".into(),
@@ -69,6 +70,7 @@ fn story() -> Vec<Exercise> {
             ),
         },
         Exercise {
+            picture: None,
             id: "request".into(),
             kind: Kind::Read(
                 "शाम हुई। नीमा खेलने जाने लगी। दादी ने उसे थोड़ी देर पास बैठने को कहा।".into(),
@@ -76,6 +78,7 @@ fn story() -> Vec<Exercise> {
             ),
         },
         Exercise {
+            picture: None,
             id: "field".into(),
             kind: Kind::Read(
                 "नीमा दादी की चप्पलें ले आई। फिर दोनों खेलने के मैदान की ओर चल पड़ीं।".into(),
@@ -83,6 +86,7 @@ fn story() -> Vec<Exercise> {
             ),
         },
         Exercise {
+            picture: None,
             id: "short-answer".into(),
             kind: Kind::Answer(
                 "नीमा स्कूल से घर आई। घर पर दादी थीं।".into(),
@@ -130,6 +134,7 @@ macro_rules! barakhadi {
 fn class_one_reading() -> Vec<Exercise> {
     vec![
         Exercise {
+            picture: None,
             id: "sounds".into(),
             kind: Kind::Read(
                 "म से माला। क से किताब। दोनों शब्द धीरे पढ़ो।".into(),
@@ -137,6 +142,7 @@ fn class_one_reading() -> Vec<Exercise> {
             ),
         },
         Exercise {
+            picture: None,
             id: "sentences".into(),
             kind: Kind::Read(
                 "मीना के पास माला है। रवि के पास किताब है। हर वाक्य के बाद रुको।".into(),
@@ -144,6 +150,7 @@ fn class_one_reading() -> Vec<Exercise> {
             ),
         },
         Exercise {
+            picture: None,
             id: "picture".into(),
             kind: Kind::Answer(
                 "📚  मीना किताब पढ़ रही है।".into(),
@@ -156,6 +163,7 @@ fn class_one_reading() -> Vec<Exercise> {
 fn class_one_talk() -> Vec<Exercise> {
     vec![
         Exercise {
+            picture: None,
             id: "first-sound".into(),
             kind: Kind::Listen(
                 "पहले ‘म’ की ध्वनि बोलें। फिर ‘माला’ धीरे बोलें और शुरुआत की ध्वनि दोहराएँ।".into(),
@@ -163,6 +171,7 @@ fn class_one_talk() -> Vec<Exercise> {
             ),
         },
         Exercise {
+            picture: None,
             id: "story".into(),
             kind: Kind::Listen(
                 "रीना ने अपना थैला खोला। थैले में एक लाल गेंद थी। रीना गेंद लेकर खेलने गई।".into(),
@@ -170,6 +179,7 @@ fn class_one_talk() -> Vec<Exercise> {
             ),
         },
         Exercise {
+            picture: None,
             id: "poem".into(),
             kind: Kind::Listen(
                 "छोटी चिड़िया दाना खाए। पंख हिलाकर उड़ती जाए।".into(),
@@ -177,6 +187,7 @@ fn class_one_talk() -> Vec<Exercise> {
             ),
         },
         Exercise {
+            picture: None,
             id: "picture-talk".into(),
             kind: Kind::Talk {
                 picture: "🎒 📕 🍎".into(),
@@ -191,32 +202,32 @@ fn class_one_talk() -> Vec<Exercise> {
 
 fn class_two_reading() -> Vec<Exercise> {
     vec![
-    Exercise { id: "clusters".into(), kind: Kind::Read("बच् + चा = बच्चा। बिल् + ली = बिल्ली। बस् + ता = बस्ता। पहले हिस्से पढ़ो, फिर पूरे शब्द।".into(),
+    Exercise { picture: None, id: "clusters".into(), kind: Kind::Read("बच् + चा = बच्चा। बिल् + ली = बिल्ली। बस् + ता = बस्ता। पहले हिस्से पढ़ो, फिर पूरे शब्द।".into(),
         question!("किस शब्द में ल् + ल आता है?", "बच्चा", "बिल्ली", 1)) },
-    Exercise { id: "story".into(), kind: Kind::Read("एक बच्चा बस्ता लेकर निकला। रास्ते में उसे एक बिल्ली दिखी। उसने बिल्ली के लिए पानी रखा। पूर्ण विराम पर थोड़ा रुको।".into(),
+    Exercise { picture: None, id: "story".into(), kind: Kind::Read("एक बच्चा बस्ता लेकर निकला। रास्ते में उसे एक बिल्ली दिखी। उसने बिल्ली के लिए पानी रखा। पूर्ण विराम पर थोड़ा रुको।".into(),
         question!("बच्चे ने पानी क्यों रखा?", "बिल्ली के लिए", "बस्ता धोने के लिए", 0)) },
-    Exercise { id: "poem".into(), kind: Kind::Read("बादल आए, हवा चली। छत पर बूँदें टप-टप पड़ीं। कविता लय से पढ़ो।".into(),
+    Exercise { picture: None, id: "poem".into(), kind: Kind::Read("बादल आए, हवा चली। छत पर बूँदें टप-टप पड़ीं। कविता लय से पढ़ो।".into(),
         question!("टप-टप किसकी आवाज़ है?", "हवा की", "बूँदों की", 1)) },
 ]
 }
 
 fn class_two_talk() -> Vec<Exercise> {
     vec![
-    Exercise { id: "story".into(), kind: Kind::Listen("आरव की नाव पानी में फँस गई। उसकी बहन ने एक डंडी से उसे किनारे किया। फिर दोनों ने मिलकर नाव चलाई।".into(),
+    Exercise { picture: None, id: "story".into(), kind: Kind::Listen("आरव की नाव पानी में फँस गई। उसकी बहन ने एक डंडी से उसे किनारे किया। फिर दोनों ने मिलकर नाव चलाई।".into(),
         question!("नाव को किनारे किसने किया?", "आरव की बहन ने", "आरव ने", 0)) },
-    Exercise { id: "poem".into(), kind: Kind::Listen("रात हुई तो तारा आया। चाँद ने उजला दीप जलाया।".into(),
+    Exercise { picture: None, id: "poem".into(), kind: Kind::Listen("रात हुई तो तारा आया। चाँद ने उजला दीप जलाया।".into(),
         question!("कविता में तारा कब आया?", "सुबह", "रात में", 1)) },
-    Exercise { id: "retell".into(), kind: Kind::Talk {
+    Exercise { picture: None, id: "retell".into(), kind: Kind::Talk {
         picture: "⛵ 💧 🪵".into(), prompt: "नाव के साथ पहले क्या हुआ? फिर क्या हुआ?".into(),
         starters: vec!["पहले नाव फँसी".into(), "फिर नाव किनारे आई".into()],
         adult: "पहले और फिर कहकर कहानी दोहराएँ। बच्चे को एक संकेत चुनने, लिखने या बोलने का समय दें।".into(),
     }},
-    Exercise { id: "ask".into(), kind: Kind::Talk {
+    Exercise { picture: None, id: "ask".into(), kind: Kind::Talk {
         picture: "⛵".into(), prompt: "नाव के बारे में एक सवाल पूछो।".into(),
         starters: vec!["नाव कहाँ थी?".into(), "नाव किसने निकाली?".into()],
         adult: "बच्चे के चुने, लिखे या बोले सवाल का जवाब दें। फिर अपनी बारी में एक सवाल पूछें।".into(),
     }},
-    Exercise { id: "reason".into(), kind: Kind::Talk {
+    Exercise { picture: None, id: "reason".into(), kind: Kind::Talk {
         picture: "⛵ 🪵".into(), prompt: "क्या बहन ने अच्छा काम किया? क्यों?".into(),
         starters: vec!["हाँ, क्योंकि उसने मदद की".into(), "मेरी अपनी वजह".into()],
         adult: "बच्चे की वजह सुनें। जरूरत पर ‘क्योंकि…’ से शुरुआत करने में मदद करें।".into(),
@@ -227,14 +238,17 @@ fn class_two_talk() -> Vec<Exercise> {
 fn class_one_writing() -> Vec<Exercise> {
     vec![
         Exercise {
+            picture: None,
             id: "mala".into(),
             kind: trace("माला"),
         },
         Exercise {
+            picture: None,
             id: "spelling".into(),
             kind: Kind::Compose("शब्द सुनकर खुद लिखो।".into(), 1, Some("माला".into())),
         },
         Exercise {
+            picture: None,
             id: "sentence".into(),
             kind: Kind::Compose("📕 किताब देखकर एक छोटा वाक्य लिखो।".into(), 1, None),
         },
@@ -244,10 +258,12 @@ fn class_one_writing() -> Vec<Exercise> {
 fn class_two_writing() -> Vec<Exercise> {
     vec![
         Exercise {
+            picture: None,
             id: "billi".into(),
             kind: trace("बिल्ली"),
         },
         Exercise {
+            picture: None,
             id: "spelling".into(),
             kind: Kind::Compose(
                 "दोनों शब्द सुनकर खुद लिखो।".into(),
@@ -256,10 +272,12 @@ fn class_two_writing() -> Vec<Exercise> {
             ),
         },
         Exercise {
+            picture: None,
             id: "story".into(),
             kind: Kind::Compose("🌱 💧 🌼 चित्रों को देखकर दो जुड़े वाक्य लिखो।".into(), 3, None),
         },
         Exercise {
+            picture: None,
             id: "steps".into(),
             kind: Kind::Compose("🌱 पौधे की देखभाल कैसे करें? दो निर्देश लिखो।".into(), 3, None),
         },

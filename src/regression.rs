@@ -88,6 +88,10 @@ fn english_mathematics_preserves_content_structure_and_progress_keys() {
         for (original, translated) in hindi.exercises.iter().zip(&english.exercises) {
             assert_eq!(original.id, translated.id);
             match (&original.kind, &translated.kind) {
+                (Kind::Table { size, writing }, Kind::Table { size: translated_size, writing: translated_writing }) => {
+                    assert_eq!(size, translated_size);
+                    assert_eq!(writing, translated_writing);
+                }
                 (Kind::Choice(original), Kind::Choice(translated)) => {
                     check_question(original, translated)
                 }
@@ -201,6 +205,11 @@ fn generated_math_rounds_are_grade_specific_and_bilingual() {
                 for (left, right) in hindi.exercises.iter().zip(&english.exercises) {
                     assert_eq!(left.id, right.id);
                     match (&left.kind, &right.kind) {
+                        (Kind::Table { size, writing }, Kind::Table { size: translated_size, writing: translated_writing }) => {
+                            assert_eq!(size, translated_size);
+                            assert_eq!(writing, translated_writing);
+                            assert!(!writing);
+                        }
                         (Kind::Choice(a), Kind::Choice(b))
                         | (Kind::Count { question: a, .. }, Kind::Count { question: b, .. }) => {
                             assert_eq!(a.answer, b.answer);
@@ -831,6 +840,25 @@ fn mathematics_counts_and_writes_every_digit_and_schedules_reviews() {
 }
 
 #[test]
+fn complete_table_writing_saves_all_ten_facts_in_one_sample() {
+    let topic = bundled("math").topics.iter().find(|topic| topic.id == "write-table-3").unwrap();
+    let step = Step { subject: "math", topic, review: false, index: 0 };
+    let mut state = State::default();
+    begin(&mut state, &step);
+    let mut ink = vec![Vec::new(); 100];
+    for row in 0..10 { ink[row * 10] = vec![vec![[0.2, 0.2], [0.5, 0.8]]]; }
+    step.apply(&mut state, Input::SubmitSolution { ink: ink.clone(), correct: true }, 100, "2026-11-21").unwrap();
+    let sample = state.history.values().next().unwrap().last().unwrap();
+    assert_eq!(sample.lines, 10);
+    assert_eq!(sample.ink, ink);
+    assert_eq!(sample.correct, Some(true));
+    let solution = sample.solution.as_ref().unwrap();
+    assert_eq!(solution.lines().count(), 10);
+    assert!(solution.starts_with("3 × 1 = 3\n"));
+    assert!(solution.ends_with("3 × 10 = 30"));
+}
+
+#[test]
 fn mathematics_covers_both_grades_and_all_table_facts() {
     let topics = &bundled("math").topics;
     for grade in [1, 2] {
@@ -845,26 +873,13 @@ fn mathematics_covers_both_grades_and_all_table_facts() {
         let topic = topics.iter().find(|topic| topic.id == id).unwrap();
         assert_eq!(topic.grade, 2);
         assert_eq!(topic.break_every, Some(3));
-        assert_eq!(topic.exercises.len(), 10);
-        let mut answer_positions = BTreeSet::new();
-        let mut distractors_above = BTreeSet::new();
-        for (index, exercise) in topic.exercises.iter().enumerate() {
-            let groups = index + 1;
-            let question = match &exercise.kind {
-                Kind::Choice(question) | Kind::Read(_, question) => question,
-                _ => panic!("expected multiplication question"),
-            };
-            assert_eq!(question.prompt, format!("{size} × {groups} = __"));
-            assert_eq!(
-                question.options[question.answer],
-                (size * groups).to_string()
-            );
-            answer_positions.insert(question.answer);
-            let wrong: usize = question.options[1 - question.answer].parse().unwrap();
-            distractors_above.insert(wrong > size * groups);
-        }
-        assert_eq!(answer_positions.len(), 2);
-        assert_eq!(distractors_above.len(), 2);
+        assert_eq!(topic.exercises.len(), 1);
+        assert_eq!(topic.exercises[0].kind, Kind::Table { size, writing: false });
+        assert_eq!(topic.revision, 1);
+        let writing = topics.iter().find(|topic| topic.id == format!("write-table-{size}")).unwrap();
+        assert_eq!(writing.exercises.len(), 1);
+        assert_eq!(writing.exercises[0].kind, Kind::Table { size, writing: true });
+        assert_eq!(writing.exercises[0].kind.writing(Paper::Hindi).unwrap().lines, 10);
     }
     let mut division_positions = BTreeSet::new();
     let mut division_distractors = BTreeSet::new();

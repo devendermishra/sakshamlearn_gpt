@@ -39,11 +39,13 @@ fn topic(
     }.into();
     let word_line = words.join(" · ");
     let mut exercises = vec![Exercise {
+        picture: None,
         id: "read".into(),
         kind: Kind::Read(format!("{word_line}\n{passage}"), check),
     }];
     for (index, word) in words.iter().enumerate() {
         exercises.push(Exercise {
+            picture: crate::pictures::word(word).map(str::to_string),
             id: format!("word-{}", index + 1),
             kind: Kind::Trace {
                 model: (*word).into(),
@@ -68,6 +70,7 @@ fn topic(
         format!("पहले ‘{}’ बोलें। थोड़ा रुकें, फिर ‘{}’ बोलें।", words[1], words[3])
     };
     exercises.push(Exercise {
+        picture: None,
         id: "dictation".into(),
         kind: Kind::Compose(prompt.into(), 2, Some(script)),
     });
