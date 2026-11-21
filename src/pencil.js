@@ -20,6 +20,26 @@ function draw() {
   if(stroke.length===1) {ctx.arc(stroke[0][0]*canvas.width,stroke[0][1]*canvas.height,1.5*ratio,0,Math.PI*2);ctx.fill();} else ctx.stroke();
  }
 }
+// Show the full pattern while keeping the original canvas coordinate system.
+function fitPage() {
+ if (!config.fitPage || !image.naturalWidth || !image.naturalHeight) return;
+ const section = root.closest('.basic-pattern-mode');
+ const main = root.closest('main');
+ const scroll = root.querySelector('.pencil-scroll');
+ const frame = root.querySelector('.pencil-frame');
+ const surface = root.querySelector('.pencil-surface');
+ const [x,y,w,h] = config.crop;
+ const padding = parseFloat(getComputedStyle(main).paddingBottom) || 0;
+ const top = section.getBoundingClientRect().top + window.scrollY;
+ section.style.height = Math.max(320, Math.floor(window.innerHeight - top - padding)) + 'px';
+ const aspect = image.naturalWidth * w / (image.naturalHeight * h);
+ const width = Math.floor(Math.min(scroll.clientWidth - 16, (scroll.clientHeight - 16) * aspect));
+ frame.style.setProperty('--pencil-fit-width', Math.max(1,width) + 'px');
+ frame.style.aspectRatio = String(aspect);
+ surface.style.width = (100 / w) + '%';
+ surface.style.left = (-100 * x / w) + '%';
+ surface.style.top = (-100 * y / h) + '%';
+}
 function point(e) { const r=canvas.getBoundingClientRect(); return [Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))]; }
 function finish() { if(active===null)return;active=null;save(); }
 canvas.addEventListener('pointerdown',e=>{
@@ -36,8 +56,14 @@ root.querySelector('[data-pencil-action=undo]').addEventListener('click',()=>{fi
 root.querySelector('[data-pencil-action=clear]').addEventListener('click',()=>{finish();strokes=[];draw();save();},{signal:listeners.signal});
 window.addEventListener('blur',finish,{signal:listeners.signal});
 document.addEventListener('visibilitychange',finish,{signal:listeners.signal});
-const resize=new ResizeObserver(draw);resize.observe(canvas);
-image.addEventListener('load',draw,{signal:listeners.signal});draw();
+function layout() { fitPage(); draw(); }
+const resize=new ResizeObserver(layout);resize.observe(canvas);
+if(config.fitPage) {
+ resize.observe(root.closest('.basic-pattern-mode'));
+ resize.observe(root.querySelector('.pencil-scroll'));
+ window.addEventListener('resize',layout,{signal:listeners.signal});
+}
+image.addEventListener('load',layout,{signal:listeners.signal});layout();
 let endLifetime;
 const lifetime=new Promise(resolve=>{endLifetime=resolve;});
 const observer=new MutationObserver(()=>{if(!root.isConnected)endLifetime();});

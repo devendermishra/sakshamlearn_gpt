@@ -492,6 +492,29 @@ header { flex-wrap: wrap; }
 .practice-page-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; }
 .pencil-scroll { overflow:auto; max-height:65vh; border:2px solid #c5ccda; border-radius:12px; background:#e9edf3; overscroll-behavior:contain; }
 .pencil-surface { position:relative; min-width:100%; background:#fff; }
+.pencil-frame { position:relative; }
+.pencil-full-page .pencil-frame { overflow:hidden; flex:none; }
+.pencil-full-page .pencil-surface { position:absolute; min-width:0; }
+main:has(.basic-pattern-mode) { max-width:none; padding:.75rem 1rem 1rem; }
+.basic-pattern-mode { display:grid; grid-template-columns:14rem minmax(0,1fr); grid-template-rows:auto auto auto minmax(0,1fr) auto auto; gap:.5rem 1rem; min-height:320px; }
+.basic-pattern-mode > h1 { grid-column:1; grid-row:1; margin:0; }
+.basic-pattern-mode > p { grid-column:1; grid-row:2; margin:0; font-size:.9rem; }
+.basic-pattern-mode > nav { grid-column:1; grid-row:3; align-content:start; margin:0; }
+.basic-pattern-mode .pencil-activity { display:contents; }
+.basic-pattern-mode .visual-instruction { grid-column:1; grid-row:4; display:flex; flex-direction:column; align-items:flex-start; justify-content:start; gap:.5rem; font-size:.9rem; }
+.basic-pattern-mode .visual-instruction .practice-picture { width:48px; height:48px; }
+.basic-pattern-mode .pencil-activity > h2 { grid-column:2; grid-row:1; margin:0; align-self:center; }
+.basic-pattern-mode #pencil-workspace { grid-column:2; grid-row:2 / 7; min-height:0; display:flex; flex-direction:column; }
+.basic-pattern-mode #pencil-workspace > nav { margin:0 0 .5rem; flex:none; }
+.basic-pattern-mode .pencil-scroll { flex:1; min-height:0; max-height:none; overflow:hidden; display:flex; align-items:center; justify-content:center; padding:8px; }
+.basic-pattern-mode .pencil-activity > details { grid-column:1; grid-row:5; font-size:.9rem; }
+.basic-pattern-mode .pencil-activity > details[open] { max-height:22vh; overflow:auto; }
+.basic-pattern-mode .pencil-activity > nav { grid-column:1; grid-row:6; margin:0; }
+@media (max-width:700px) {
+ .basic-pattern-mode { grid-template-columns:10rem minmax(0,1fr); gap:.4rem .6rem; }
+ .basic-pattern-mode > h1 { font-size:1.4rem; }
+ .basic-pattern-mode button { padding:.4rem .65rem; }
+}
 .pencil-surface>img { width:100%; height:auto; display:block; user-select:none; }
 .pencil-surface canvas { position:absolute; inset:0; width:100%; height:100%; }
 .pencil-reference { display:block; max-width:100%; max-height:100vh; object-fit:contain; margin:auto; }
@@ -546,3 +569,11 @@ header { flex-wrap: wrap; }
 .table-tracing-sheet .ink-status { margin: .5rem 0; }
 .table-tracing-sheet .ink-status:empty { display: none; }
 .table-equations { white-space: pre-line; font-size: 1.3rem; line-height: 1.8; }
+
+.basic-pattern-mode .pencil-activity > nav .primary { order:-1; flex-basis:100%; }
+.basic-pattern-mode .pencil-activity > nav button:not(.primary) { flex:1; }
+@media (max-height:700px) {
+ .basic-pattern-mode > h1 { font-size:1.6rem; line-height:1.2; }
+ .basic-pattern-mode .visual-instruction .practice-picture { display:none; }
+ .basic-pattern-mode .visual-instruction p { margin:0; }
+}
