@@ -152,13 +152,13 @@ pub(super) fn Practice(
     on_select: EventHandler<String>,
 ) -> Element {
     let path = directory.join("aba-exercises.json");
-    let loaded = use_hook(|| state::load_local::<Progress>(&path).map_err(|e| e.to_string()));
-    let mut progress = use_signal(|| loaded.clone().unwrap_or_default());
-    let mut failed = use_signal(|| false);
+    let (mut progress, loaded) = crate::persistence::use_loaded(|| state::load_local::<Progress>(&path).map_err(|e| e.to_string()));
+    let failed = use_signal(|| false);
     let mut show_labels = use_signal(|| true);
     let mut hidden = use_signal(|| String::new());
+    let save_progress = crate::persistence::use_saver(path.clone(), failed);
     let persist = use_callback(move |next: Progress| {
-        failed.set(state::save_local(&path, &next).is_err());
+        save_progress.call(next.clone());
         progress.set(next);
     });
     let selection_to_save = selected.clone();

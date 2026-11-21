@@ -2,7 +2,7 @@ use crate::language::Language;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use dioxus::prelude::*;
 use serde::Deserialize;
-use std::{collections::BTreeMap, sync::LazyLock};
+use std::{collections::BTreeMap, sync::{LazyLock, OnceLock}};
 #[derive(Deserialize)]
 pub struct Card {
     pub id: String,
@@ -32,7 +32,7 @@ pub static CARDS: LazyLock<Vec<Card>> = LazyLock::new(|| {
 pub fn card(id: &str) -> Option<&'static Card> {
     CARDS.iter().find(|c| c.id == id)
 }
-static IMAGES: LazyLock<BTreeMap<&str, String>> = LazyLock::new(|| {
+static IMAGES: LazyLock<BTreeMap<&str, (&'static [u8], OnceLock<String>)>> = LazyLock::new(|| {
     let entries: &[(&str, &[u8])] = &[
         ("under", include_bytes!("../assets/pictures/under.jpg")),
         ("near", include_bytes!("../assets/pictures/near.jpg")),
@@ -184,18 +184,15 @@ static IMAGES: LazyLock<BTreeMap<&str, String>> = LazyLock::new(|| {
     ];
     entries
         .iter()
-        .map(|(id, bytes)| {
-            (
-                *id,
-                format!("data:image/jpeg;base64,{}", STANDARD.encode(bytes)),
-            )
-        })
+        .map(|(id, bytes)| (*id, (*bytes, OnceLock::new())))
         .collect()
 });
 pub fn source(id: &str) -> &'static str {
-    IMAGES.get(id).map_or("", String::as_str)
+    IMAGES.get(id).map_or("", |(bytes, encoded)| {
+        encoded.get_or_init(|| format!("data:image/jpeg;base64,{}", STANDARD.encode(bytes))).as_str()
+    })
 }
-static PRACTICE: LazyLock<BTreeMap<&str, String>> = LazyLock::new(|| {
+static PRACTICE: LazyLock<BTreeMap<&str, (&'static [u8], OnceLock<String>)>> = LazyLock::new(|| {
     let entries: &[(&str, &[u8])] = &[
         (
             "pencil-1.jpg",
@@ -504,16 +501,13 @@ static PRACTICE: LazyLock<BTreeMap<&str, String>> = LazyLock::new(|| {
     ];
     entries
         .iter()
-        .map(|(id, bytes)| {
-            (
-                *id,
-                format!("data:image/jpeg;base64,{}", STANDARD.encode(bytes)),
-            )
-        })
+        .map(|(id, bytes)| (*id, (*bytes, OnceLock::new())))
         .collect()
 });
 pub fn practice(file: &str) -> String {
-    PRACTICE.get(file).cloned().unwrap_or_default()
+    PRACTICE.get(file).map(|(bytes, encoded)| {
+        encoded.get_or_init(|| format!("data:image/jpeg;base64,{}", STANDARD.encode(bytes))).clone()
+    }).unwrap_or_default()
 }
 #[component]
 pub fn Image(id: String, language: Language, #[props(default)] compact: bool) -> Element {

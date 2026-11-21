@@ -48,12 +48,12 @@ pub(crate) fn pattern_crop(page: usize) -> Option<[f64; 4]> {
 #[component]
 pub fn Basic(directory: PathBuf, language: Language) -> Element {
     let path = directory.join("basic-pencil.json");
-    let loaded = use_hook(|| state::load_local::<Progress>(&path).map_err(|e| e.to_string()));
-    let mut progress = use_signal(|| loaded.clone().unwrap_or_default());
-    let mut failed = use_signal(|| false);
+    let (mut progress, loaded) = crate::persistence::use_loaded(|| state::load_local::<Progress>(&path).map_err(|e| e.to_string()));
+    let failed = use_signal(|| false);
     let mut page_list = use_signal(|| false);
+    let save_progress = crate::persistence::use_saver(path.clone(), failed);
     let persist = use_callback(move |next: Progress| {
-        failed.set(state::save_local(&path, &next).is_err());
+        save_progress.call(next.clone());
         progress.set(next);
     });
     let position = progress.read().position.min(SHEETS.len() - 1);

@@ -1,17 +1,24 @@
 param(
     [string]$Output = (Join-Path $PSScriptRoot "target/Saksham-Android.apk"),
-    [switch]$UseExistingBuild
+    [switch]$UseExistingBuild,
+    [switch]$DebugBuild,
+    [switch]$Offline
 )
 
 $ErrorActionPreference = "Stop"
 Push-Location $PSScriptRoot
 try {
+    $profile = if ($DebugBuild) { "debug" } else { "release" }
+    $variant = if ($DebugBuild) { "Debug" } else { "Release" }
     if (!$UseExistingBuild) {
-        dx build --platform android --target aarch64-linux-android --no-default-features --features mobile --locked
+        $arguments = @("build", "--platform", "android", "--target", "aarch64-linux-android", "--no-default-features", "--features", "mobile", "--locked")
+        if (!$DebugBuild) { $arguments += "--release" }
+        if ($Offline) { $arguments += "--offline" }
+        & dx @arguments
         if ($LASTEXITCODE -ne 0) { throw "Dioxus Android build failed." }
     }
 
-    $project = Join-Path $PSScriptRoot "target/dx/saksham/debug/android/app"
+    $project = Join-Path $PSScriptRoot "target/dx/saksham/$profile/android/app"
     $main = Join-Path $project "app/src/main"
     $activity = Join-Path $main "kotlin/dev/dioxus/main/MainActivity.kt"
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot "android/MainActivity.kt") -Destination $activity -Force
@@ -19,6 +26,21 @@ try {
     [xml]$xml = Get-Content -LiteralPath $manifest -Raw
     [void]$xml.manifest.application.SetAttribute("icon", "http://schemas.android.com/apk/res/android", "@mipmap/saksham_launcher")
     $xml.Save($manifest)
+
+    if (!$DebugBuild) {
+        # Preserve the installed tablet's signing identity while using optimized,
+        # non-debuggable Rust and Android release builds. Public distribution
+        # should configure its own release signing key here.
+        $gradle = Join-Path $project "app/build.gradle.kts"
+        $configuration = Get-Content -LiteralPath $gradle -Raw
+        $releaseMarker = 'getByName("release") {'
+        $signingMarker = '// Saksham tablet release signing'
+        if (!$configuration.Contains($signingMarker)) {
+            if (!$configuration.Contains($releaseMarker)) { throw "Generated Gradle release configuration was not found." }
+            $configuration = $configuration.Replace($releaseMarker, "$releaseMarker`n            $signingMarker`n            signingConfig = signingConfigs.getByName(`"debug`")`n            isShrinkResources = true")
+            Set-Content -LiteralPath $gradle -Value $configuration -Encoding utf8
+        }
+    }
 
     Add-Type -AssemblyName System.Drawing
     $source = [System.Drawing.Image]::FromFile((Join-Path $PSScriptRoot "assets/saksham-icon.png"))
@@ -45,14 +67,17 @@ try {
 
     Push-Location $project
     try {
-        # Dioxus has already packaged the default icon. Clean that output so
-        # Gradle writes a fresh APK when it adds the Saksham resources.
-        & ./gradlew.bat --offline :app:clean :app:assembleDebug
+        # Resource changes invalidate packaging without deleting Gradle outputs.
+        $gradleArguments = @(":app:assemble$variant")
+        if ($Offline) { $gradleArguments += "--offline" }
+        & ./gradlew.bat @gradleArguments
         if ($LASTEXITCODE -ne 0) { throw "Gradle could not package the launcher artwork." }
     } finally {
         Pop-Location
     }
-    Copy-Item -LiteralPath (Join-Path $project "app/build/outputs/apk/debug/app-debug.apk") -Destination $Output
+    $outputDirectory = Split-Path -Parent $Output
+    if ($outputDirectory) { [void][System.IO.Directory]::CreateDirectory($outputDirectory) }
+    Copy-Item -LiteralPath (Join-Path $project "app/build/outputs/apk/$profile/app-$profile.apk") -Destination $Output
     Write-Output "Signed APK: $Output"
 } finally {
     Pop-Location

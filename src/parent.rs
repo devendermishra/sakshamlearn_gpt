@@ -26,17 +26,23 @@ pub fn Parent(
     drop(current);
     let mut selected = use_signal(|| None::<String>);
     let create = data.read().pin.is_none();
+    let mut history_page = use_signal(|| 0usize);
     if authorized() && manage() {
         return rsx! { Authoring { catalog: data.read().catalog.clone(), scale, publish, on_back: move |_| manage.set(false) } };
     }
     let snapshot = data.read();
-    let mut samples = snapshot.samples.clone();
-    for (exercise, history) in &snapshot.history {
-        for (index, sample) in history.iter().enumerate() {
-            samples.insert(format!("{exercise}/attempt/{index:08}"), sample.clone());
+    // Borrow ink; only build lightweight rows after parent authorization.
+    let mut samples = std::collections::BTreeMap::new();
+    if authorized() {
+        for (id, sample) in &snapshot.samples { samples.insert(id.clone(), sample); }
+        for (exercise, history) in &snapshot.history {
+            for (index, sample) in history.iter().enumerate() {
+                samples.insert(format!("{exercise}/attempt/{index:08}"), sample);
+            }
         }
     }
-    drop(snapshot);
+    let pages = samples.len().div_ceil(30).max(1);
+    let current_page = history_page().min(pages - 1);
     let review_count = data.read().due_review_count(state::day());
     rsx! {
         section { lang: "en", class: "parent",
@@ -71,7 +77,14 @@ pub fn Parent(
                 h2 { "Writing review" }
                 p { "Due reviews: {review_count}" }
                 if samples.is_empty() { p { "Saved writing will appear here." } }
-                for (id, sample) in &samples {
+                if pages > 1 {
+                    nav { class: "actions",
+                        button { disabled: current_page == 0, onclick: move |_| history_page.set(current_page - 1), "Previous samples" }
+                        span { "Page {current_page + 1} / {pages}" }
+                        button { disabled: current_page + 1 >= pages, onclick: move |_| history_page.set(current_page + 1), "Next samples" }
+                    }
+                }
+                for (id, sample) in samples.iter().skip(current_page * 30).take(30) {
                     {
                         let id = id.clone();
                         let date = sample.saved_on.as_deref().unwrap_or("Draft or earlier sample");

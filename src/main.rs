@@ -14,6 +14,7 @@ mod math_help;
 mod parent;
 mod platform;
 mod progress;
+mod persistence;
 mod state;
 mod writing;
 mod worksheets;
@@ -108,9 +109,9 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
     });
     let local_folder = path.with_file_name("learner-work");
 
-    let learner_path = path.clone();
+    let save_progress = persistence::use_saver(path.clone(), save_error);
     let commit = use_callback(move |next: State| {
-        save_error.set(state::save(&learner_path, &next).is_err());
+        save_progress.call(next.clone());
         data.set(next);
     });
     let calibration_path = path.clone();

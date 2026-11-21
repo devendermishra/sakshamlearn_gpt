@@ -53,7 +53,7 @@ function scheduleDraw(index) {
     if (frame) return;
     frame = requestAnimationFrame(() => {
         frame = 0;
-        draw(index);
+        drawActive(index);
     });
 }
 const history = [];
@@ -187,7 +187,10 @@ function raster(canvas, paint, resolution = 1) {
     const ctx = scratch.getContext("2d", {willReadFrequently: true});
     ctx.scale(resolution, resolution);
     paint(ctx);
-    return ctx.getImageData(0, 0, scratch.width, scratch.height).data;
+    const pixels = ctx.getImageData(0, 0, scratch.width, scratch.height).data;
+    // Free the temporary canvas backing store; pixels own a separate buffer.
+    scratch.width = scratch.height = 1;
+    return pixels;
 }
 
 function draw(index) {
@@ -199,6 +202,15 @@ function draw(index) {
         paintTraceGuide(ctx, guide(canvas, index));
     }
     for (const stroke of ink[index]) line(ctx, stroke, "#223c37", 5);
+    if (active?.index === index) active.rendered = ink[index].at(-1).length;
+}
+
+function drawActive(index) {
+    if (active?.index !== index) return;
+    const stroke = ink[index].at(-1);
+    if (stroke.length <= active.rendered) return;
+    line(cells[index].getContext("2d"), stroke.slice(Math.max(0, active.rendered - 1)), "#223c37", 5);
+    active.rendered = stroke.length;
 }
 
 function isTraceCell(index) {
@@ -224,6 +236,8 @@ function guide(canvas, index) {
         const resolution = !square && !englishPaper ? 3 : 1;
         const paths = traceGuide(template(canvas, index, resolution), canvas.width * resolution, canvas.height * resolution);
         guides.set(character, paths.map(path => path.map(([x,y]) => [x/resolution,y/resolution])));
+        // Feedback uses the 1x mask. Never retain the much larger extraction mask.
+        if (resolution > 1) references.delete(character + '/' + resolution);
     }
     return guides.get(character);
 }
@@ -279,7 +293,7 @@ function bind(canvas, index) {
         event.preventDefault();
         canvas.setPointerCapture(event.pointerId);
         ink[index].push([point(event, canvas)]);
-        active = {id: event.pointerId, index};
+        active = {id: event.pointerId, index, rendered: 0};
         scheduleDraw(index);
     }, {signal: listeners.signal});
     canvas.addEventListener("pointermove", event => {
@@ -296,12 +310,12 @@ function bind(canvas, index) {
         if (event.type === "pointerup" && ink[index].at(-1).length < 4096) {
             ink[index].at(-1).push(point(event, canvas));
         }
+        drawActive(index);
         active = null;
         cancelAnimationFrame(frame);
         frame = 0;
         latest = index;
         history.push(index);
-        draw(index);
         update();
     }
     for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) canvas.addEventListener(type, end, {signal: listeners.signal});

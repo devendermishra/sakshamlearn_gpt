@@ -424,16 +424,16 @@ fn subject_name(subject: &str) -> &'static str {
 #[component]
 pub fn DailyExercises(directory: PathBuf, math_language: Language, scale: PaperScale) -> Element {
     let path = directory.join("daily-exercises.json");
-    let loaded = use_hook(|| load(&path));
+    let (mut progress, loaded) = crate::persistence::use_loaded(|| load(&path));
     let error = loaded.as_ref().err().cloned();
     let writable = loaded.is_ok();
-    let mut progress = use_signal(|| loaded.clone().unwrap_or_default());
-    let mut failed = use_signal(|| false);
+    let failed = use_signal(|| false);
+    let save_progress = crate::persistence::use_saver(path.clone(), failed);
     let persist = use_callback(move |mut next: Progress| {
         // No writes after a load error, including from delayed canvas events.
         if writable {
             next.render_revision = progress.peek().render_revision + 1;
-            failed.set(state::save_local(&path, &next).is_err());
+            save_progress.call(next.clone());
             progress.set(next);
         }
     });

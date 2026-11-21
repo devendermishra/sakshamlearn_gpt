@@ -35,7 +35,7 @@ adb devices
 adb install -r target/Saksham-Android.apk
 ```
 
-The script builds an ARM64 debug APK, adds the Saksham launcher icon, and packages the result with Gradle's debug signing key. Keep the same signing key for in-place updates. You can also copy the APK to the tablet and open it there. Run `cargo run --locked` for a Windows desktop preview with WebView2.
+The script builds an optimized ARM64 release APK by default (`-DebugBuild` selects a development APK), adds the Saksham launcher icon, and packages the result with Gradle's debug signing key. Keep the same signing key for in-place updates. You can also copy the APK to the tablet and open it there. Run `cargo run --locked` for a Windows desktop preview with WebView2.
 
 On the tablet, open **बड़ों के लिए**, set a parent PIN, and measure both edges of the 80 mm reference square with a physical ruler. Enter both measurements, adjust the guides, and check the Hindi and Mathematics samples with the ruler before saving. Repeat if the device display scaling changes. The default size before calibration is an estimate. Writing accepts active stylus input. Tap buttons with a finger or stylus. Progress and saved writing live in the app's local storage and will be erased if its app data is cleared.
 
@@ -106,3 +106,9 @@ All 60 days are open. Choose **Continue next unfinished day**, select a subject,
 The versioned manifest and coverage inventory are built deterministically from bundled source IDs in `src/daily_exercises.rs`. **Coverage inventory** in the pane lists the day, subject, goal, source and task count for every scheduled group. Dependent composition/revision steps stay together. A later plan version requires an explicit migration; incompatible or unreadable saves are reported and left untouched.
 
 Run `cargo test --locked`, `cargo build --locked`, and `node tests/daily-exercises-ui.cjs` to verify coverage, persistence and the desktop pane. On Android, additionally verify active stylus input, palm rejection, airplane-mode restart and landscape layout using the existing device acceptance checks.
+
+## Optimized Android builds
+
+`./build-android.ps1` builds the optimized ARM64 release Rust library and packages a non-debuggable, minified APK. It uses the existing Gradle debug signing key for tablet update compatibility; use a dedicated release key for public distribution. `./build-android.ps1 -DebugBuild` retains the development build. Add `-Offline` once the toolchain dependencies have been cached. Release Rust uses size optimization, thin LTO, one codegen unit and stripped symbols.
+
+Drawing runs locally in the WebView canvas; Rust owns learning logic and ordered background persistence. Progress retains its existing JSON format. Pending saves coalesce by file, use buffered atomic writes, and finish before a file is reopened. Pencil input renders new segments once per animation frame and checkpoints long strokes every two seconds, then saves immediately at stroke completion, blur and visibility changes. Parent handwriting history is preserved and paginated.

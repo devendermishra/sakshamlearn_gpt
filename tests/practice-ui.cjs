@@ -134,7 +134,9 @@ async function stroke(page) {
   await page.locator('select').selectOption('speech');
   await page.waitForFunction(()=>document.querySelectorAll('.flashcard').length===24);
   assert.equal(await page.locator('.flashcard').count(),24);
-  await page.locator('.flashcard img').evaluateAll(imgs=>Promise.all(imgs.map(i=>i.decode())));
+  // Off-screen lazy images need an explicit load before decoding the whole catalog.
+  await page.locator('.flashcard img').evaluateAll(imgs=>imgs.forEach(i=>{i.loading='eager';}));
+  await page.waitForFunction(()=>[...document.querySelectorAll('.flashcard img')].every(i=>i.complete&&i.naturalWidth>0));
   assert.equal(await page.locator('.flashcard img').evaluateAll(imgs=>imgs.every(i=>i.src.startsWith('data:image/'))),true);
   await page.screenshot({path:path.join(output,'speech-ui.png'),fullPage:true});
   await button(page,'Home plan checklist').click();
@@ -166,5 +168,28 @@ async function stroke(page) {
   await page.waitForTimeout(200);
   for(const name of ['basic-pencil.json','aba-exercises.json']) assert.equal(await fs.readFile(path.join(corruptFolder,name),'utf8'),'{broken');
  });
- console.log('Basic/ABA UI and restart checks passed. Screenshots: '+output);
+
+ const archive=await fs.mkdtemp(path.join(root,'target/history-ui-'));
+ const archiveFile=path.join(archive,'Saksham/progress.json');
+ const attempts=Array.from({length:61},(_,i)=>({paper:'English',label:'Optimization sample '+i,model:'a',ink:[[[[.1,.2],[.3,.4]]]],saved_on:'2026-11-21',lines:1}));
+ await fs.mkdir(path.dirname(archiveFile),{recursive:true});
+ await fs.writeFile(archiveFile,JSON.stringify({history:{exercise:attempts}}));
+ await run(archive,async page=>{
+  await button(page,'बड़ों के लिए').click();
+  assert.equal(await page.getByRole('button',{name:/^Optimization sample /}).count(),0);
+  await page.getByLabel('Set a parent PIN').focus();
+  const keys=page.getByRole('group',{name:'Numeric keypad'});
+  for(const digit of ['1','2','3','4'])await button(keys,digit).click();
+  await button(page,'Continue').click();
+  await button(page,'Next samples').waitFor();
+  assert.equal(await page.getByRole('button',{name:/^Optimization sample /}).count(),30);
+  await button(page,'Next samples').click();
+  assert.equal(await page.getByRole('button',{name:/^Optimization sample /}).count(),30);
+  await button(page,'Next samples').click();
+  assert.equal(await page.getByRole('button',{name:/^Optimization sample /}).count(),1);
+  await page.getByRole('button',{name:/^Optimization sample 60 /}).click();
+  await page.locator('#review-ink canvas').first().waitFor();
+  assert.equal((await saved(archiveFile)).history.exercise.length,61);
+ });
+ console.log('Basic/ABA UI, restart, corrupt saves and paginated parent history passed. Screenshots: '+output);
 })().catch(error=>{console.error(error);process.exitCode=1;});

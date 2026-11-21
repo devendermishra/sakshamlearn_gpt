@@ -257,18 +257,18 @@ pub fn TracingPractice(
 #[component]
 fn TableTraceSheet(size: u8, grade: u8, scale: PaperScale, language: Language, directory: PathBuf) -> Element {
     let path = directory.join(format!("trace-math-{grade}-table-{size}-sheet.json"));
-    let initial = use_hook(|| load_table_sheet(&directory, &path, grade, size).map_err(|error| error.to_string()));
-    let mut draft = use_signal(|| initial.clone().unwrap_or_default());
-    let mut failed = use_signal(|| false);
+    let (mut draft, initial) = crate::persistence::use_loaded(|| load_table_sheet(&directory, &path, grade, size).map_err(|error| error.to_string()));
+    let failed = use_signal(|| false);
+    let save_ink = crate::persistence::use_saver(path.clone(), failed);
     let save = use_callback(move |ink: Ink| {
-        failed.set(state::save_local(&path, &ink).is_err());
+        save_ink.call(ink.clone());
         draft.set(ink);
     });
     rsx! {
         section { class: "table-sheet table-tracing-sheet",
             p { {language.text("बाईं ओर बिंदियों पर लिखो। दाईं ओर खुद लिखो। हर पूरी संख्या एक खाने में लिखो।", "Trace on the left. Write on your own on the right. Keep each whole number in one box.")} }
-            if let Ok(initial) = initial {
-                InkPad { id: "table-trace-ink", model: "", initial, paper: Paper::Digit, scale, language,
+            if initial.is_ok() {
+                InkPad { id: "table-trace-ink", model: "", initial: draft(), paper: Paper::Digit, scale, language,
                     lines: 10, table_trace: Some(size), on_ink: move |ink| save.call(ink) }
                 if failed() {
                     p { role: "alert", {language.text("लिखाई सहेजी नहीं गई।", "Your writing could not be saved.")} }
@@ -282,6 +282,7 @@ fn TableTraceSheet(size: u8, grade: u8, scale: PaperScale, language: Language, d
 }
 
 fn load_table_sheet(directory: &std::path::Path, path: &std::path::Path, grade: u8, size: u8) -> std::io::Result<Ink> {
+    crate::persistence::flush()?;
     let old_sheet: Option<Ink> = if path.exists() { Some(state::load_local(path)?) } else { None };
     if let Some(sheet) = &old_sheet {
         if sheet.len() == 100 { return Ok(sheet.clone()); }
@@ -328,18 +329,18 @@ fn TraceModel(
     language: Language,
     path: PathBuf,
 ) -> Element {
-    let initial = use_hook(|| state::load_local::<Ink>(&path).map_err(|error| error.to_string()));
-    let mut draft = use_signal(|| initial.clone().unwrap_or_default());
-    let mut failed = use_signal(|| false);
+    let (mut draft, initial) = crate::persistence::use_loaded(|| state::load_local::<Ink>(&path).map_err(|error| error.to_string()));
+    let failed = use_signal(|| false);
+    let save_ink = crate::persistence::use_saver(path.clone(), failed);
     let save = use_callback(move |ink: Ink| {
-        failed.set(state::save_local(&path, &ink).is_err());
+        save_ink.call(ink.clone());
         draft.set(ink);
     });
     rsx! {
         section { class: "trace-model",
             h2 { "{model}" }
-            if let Ok(initial) = initial {
-                InkPad { id, model, initial, paper, scale, language, single_trace: true,
+            if initial.is_ok() {
+                InkPad { id, model, initial: draft(), paper, scale, language, single_trace: true,
                     on_ink: move |ink| save.call(ink) }
                 if failed() {
                     p { role: "alert", {language.text("लिखाई सहेजी नहीं गई।", "Your writing could not be saved.")} }

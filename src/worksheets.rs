@@ -130,13 +130,13 @@ fn Practice(
     on_back: EventHandler<()>,
 ) -> Element {
     let sheet = &SHEETS[index];
-    let saved = use_hook(|| state::load_local::<Progress>(&path).map_err(|error| error.to_string()));
-    let mut progress = use_signal(|| saved.clone().unwrap_or_default());
-    let mut failed = use_signal(|| false);
+    let (mut progress, saved) = crate::persistence::use_loaded(|| state::load_local::<Progress>(&path).map_err(|error| error.to_string()));
+    let failed = use_signal(|| false);
     let mut paused = use_signal(|| false);
     let mut pending_answer = use_signal(|| None::<String>);
+    let save_progress = crate::persistence::use_saver(path.clone(), failed);
     let persist = use_callback(move |next: Progress| {
-        failed.set(state::save_local(&path, &next).is_err());
+        save_progress.call(next.clone());
         progress.set(next);
     });
     let position = progress.read().position;

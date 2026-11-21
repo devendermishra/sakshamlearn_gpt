@@ -299,6 +299,7 @@ pub fn session_key(subject: &str, topic: &str, review: bool) -> String {
 }
 
 pub fn load(path: &Path) -> io::Result<State> {
+    crate::persistence::flush()?;
     match fs::read(path) {
         Ok(bytes) => {
             let mut state: State = serde_json::from_slice(&bytes)?;
@@ -330,6 +331,7 @@ pub fn save(path: &Path, state: &State) -> io::Result<()> {
 }
 
 pub fn load_local<T: serde::de::DeserializeOwned + Default>(path: &Path) -> io::Result<T> {
+    crate::persistence::flush()?;
     match fs::File::open(path) {
         Ok(file) => serde_json::from_reader(io::BufReader::new(file)).map_err(io::Error::other),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(T::default()),
@@ -337,15 +339,33 @@ pub fn load_local<T: serde::de::DeserializeOwned + Default>(path: &Path) -> io::
     }
 }
 
-pub fn save_local<T: Serialize>(path: &Path, value: &T) -> io::Result<()> {
+pub fn save_local<T: Serialize + Clone + Send + 'static>(path: &Path, value: &T) -> io::Result<()> {
+    crate::persistence::save(path.to_owned(), value.clone())
+}
+
+pub(crate) fn write_local<T: Serialize>(path: &Path, value: &T) -> io::Result<()> {
     let parent = path.parent().ok_or(io::ErrorKind::InvalidInput)?;
     fs::create_dir_all(parent)?;
     let mut file = tempfile::NamedTempFile::new_in(parent)?;
-    serde_json::to_writer(&mut file, value)?;
-    file.flush()?;
+    {
+        let mut writer = io::BufWriter::with_capacity(64 * 1024, &mut file);
+        serde_json::to_writer(&mut writer, value)?;
+        writer.flush()?;
+    }
     file.as_file().sync_all()?;
-    file.persist(path).map_err(|err| err.error)?;
-    Ok(())
+    // Windows readers and antivirus scanners can briefly hold the destination.
+    // Retry only replacement contention; malformed paths and other errors stay visible.
+    for attempt in 0..5 {
+        match file.persist(path) {
+            Ok(_) => return Ok(()),
+            Err(error) if cfg!(windows) && attempt < 4 && matches!(error.error.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::WouldBlock) => {
+                file = error.file;
+                std::thread::sleep(std::time::Duration::from_millis(20 << attempt));
+            }
+            Err(error) => return Err(error.error),
+        }
+    }
+    unreachable!("persist returns on the last attempt")
 }
 
 #[cfg(test)]

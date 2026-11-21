@@ -14,11 +14,11 @@ pub fn RoughSheet(path: PathBuf, paper: Paper, language: Language, scale: PaperS
         Paper::English => 12,
         _ => 24,
     };
-    let saved = use_hook(|| state::load_local::<Ink>(&path).map_err(|error| error.to_string()));
-    let mut draft = use_signal(|| saved.clone().unwrap_or_default());
-    let mut failed = use_signal(|| false);
+    let (mut draft, saved) = crate::persistence::use_loaded(|| state::load_local::<Ink>(&path).map_err(|error| error.to_string()));
+    let failed = use_signal(|| false);
+    let save_ink = crate::persistence::use_saver(path.clone(), failed);
     let save = use_callback(move |ink: Ink| {
-        failed.set(state::save_local(&path, &ink).is_err());
+        save_ink.call(ink.clone());
         draft.set(ink);
     });
     let title = language.text("रफ़ कॉपी", "Rough Sheet");
@@ -30,7 +30,7 @@ pub fn RoughSheet(path: PathBuf, paper: Paper, language: Language, scale: PaperS
                 p { {language.text("पेन से कुछ भी लिखो या बनाओ।", "Use your pen to write or draw anywhere on the sheet.")} }
             }
             if saved.is_ok() {
-                InkPad { id: "rough-ink", model: String::new(), initial: saved.unwrap_or_default(),
+                InkPad { id: "rough-ink", model: String::new(), initial: draft(),
                     scale, paper, lines, full_sheet: true, language, on_ink: move |ink| save.call(ink) }
                 if failed() {
                     p { role: "alert", {language.text("कॉपी सहेजी नहीं गई।", "The sheet could not be saved.")} }
