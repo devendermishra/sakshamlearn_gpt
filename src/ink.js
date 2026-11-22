@@ -197,7 +197,8 @@ function glyph(ctx, text, kind, width = ctx.canvas.width) {
     if (square) {
         ctx.font = "144px system-ui, sans-serif";
         ctx.textBaseline = "middle";
-        ctx.fillText(text, 108, 112, 180);
+        if (text.includes("4")) drawHandwrittenFour(ctx, text);
+        else ctx.fillText(text, 108, 112, 180);
         ctx.restore();
         return;
     }
@@ -210,6 +211,39 @@ function glyph(ctx, text, kind, width = ctx.canvas.width) {
     ctx.textAlign = sentence.length ? "left" : "center";
     ctx.fillText(text, sentence.length ? glyphPadding / 2 : width / 2, 143, width - glyphPadding);
     ctx.restore();
+}
+
+// Keep the open-top school handwriting form of 4 in both the visible
+// model and the raster used to generate dots and assess tracing.
+function drawHandwrittenFour(ctx, text) {
+    const characters = Array.from(text);
+    const widths = characters.map(character => ctx.measureText(character).width);
+    const total = widths.reduce((sum, width) => sum + width, 0);
+    ctx.translate(108, 0);
+    ctx.scale(Math.min(1, 180 / total), 1);
+    let left = -total / 2;
+    for (const [index, character] of characters.entries()) {
+        const width = widths[index];
+        if (character === "4") {
+            ctx.save();
+            ctx.translate(left + width * 0.08, 56);
+            ctx.scale(width * 0.84, 108);
+            ctx.beginPath();
+            ctx.moveTo(0.58, 0);
+            ctx.lineTo(0.08, 0.66);
+            ctx.lineTo(0.92, 0.66);
+            ctx.moveTo(0.68, 0.28);
+            ctx.lineTo(0.68, 1);
+            ctx.restore();
+            ctx.strokeStyle = ctx.fillStyle;
+            ctx.lineWidth = 9;
+            ctx.lineCap = ctx.lineJoin = "round";
+            ctx.stroke();
+        } else {
+            ctx.fillText(character, left + width / 2, 112);
+        }
+        left += width;
+    }
 }
 
 function drawEnglishModel(ctx, text) {
