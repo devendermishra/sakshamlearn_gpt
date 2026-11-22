@@ -1,3 +1,4 @@
+mod exercise_lock;
 mod aba;
 mod daily_exercises;
 mod appearance;
@@ -88,6 +89,8 @@ impl PartialEq for StateInput {
 #[component]
 fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
     let mut data = use_signal(|| initial.0);
+    let exercise_locked = use_signal(|| false);
+    use_context_provider(|| exercise_lock::Controls(exercise_locked));
     let mut page = use_signal(|| Page::Subjects);
     let mut subject_id = use_signal(|| content::BUNDLED[0].id.clone());
     let mut grade = use_signal(|| 2u8);
@@ -264,8 +267,8 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                 p { "कक्षा 1 और 2" }
                 h1 { "अपना विषय चुनो" }
             }
-            button { class: "primary daily-home", "data-subject": "daily-exercises",
-                onclick: move |_| page.set(Page::DailyExercises), "60-day exercises · 60 दिन के अभ्यास" }
+            button { disabled: crate::exercise_lock::locked(), class: "primary daily-home", "data-subject": "daily-exercises",
+                onclick: crate::exercise_lock::guard(move |_| page.set(Page::DailyExercises)), "60-day exercises · 60 दिन के अभ्यास" }
             div { class: "subject-cards home-subjects",
                 for item in snapshot.catalog.subjects() {
                     {
@@ -279,12 +282,12 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                             (item.name.as_str(), "hi")
                         };
                         rsx! {
-                            button { key: "{id}", class: "subject-card", "data-subject": "{id}", lang, disabled: default_grade.is_none(),
-                                onclick: move |_| {
+                            button { key: "{id}", class: "subject-card", "data-subject": "{id}", lang, disabled: crate::exercise_lock::locked() || (default_grade.is_none()),
+                                onclick: crate::exercise_lock::guard(move |_| {
                                     subject_id.set(id.clone());
                                     if let Some(level) = default_grade { grade.set(level); }
                                     page.set(Page::Subject);
-                                },
+                                }),
                                 span { class: "subject-icon", aria_hidden: "true", {subject_icon(&id)} }
                                 span { "{name}" }
                                 if default_grade.is_none() { small { "जल्द आएगा" } }
@@ -292,11 +295,11 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                         }
                     }
                 }
-                button { class: "subject-card", "data-subject": "basic", lang: aba_language.code(), onclick: move |_| page.set(Page::Basic),
+                button { disabled: crate::exercise_lock::locked(), class: "subject-card", "data-subject": "basic", lang: aba_language.code(), onclick: crate::exercise_lock::guard(move |_| page.set(Page::Basic)),
                     span { class: "subject-icon", aria_hidden: "true", "✎" }
                     span { {aba_language.text("बुनियादी अभ्यास", "Basic")} }
                 }
-                button { class: "subject-card", "data-subject": "aba", lang: aba_language.code(), onclick: move |_| page.set(Page::Aba),
+                button { disabled: crate::exercise_lock::locked(), class: "subject-card", "data-subject": "aba", lang: aba_language.code(), onclick: crate::exercise_lock::guard(move |_| page.set(Page::Aba)),
                     span { class: "subject-icon", aria_hidden: "true", "◇" }
                     span { "{aba_name}" }
                 }
@@ -313,15 +316,15 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
             }
             if matches!(selected.as_str(), "hi" | "math" | "en") {
                 div { class: "subject-cards subject-tools",
-                    button { class: "subject-card", onclick: move |_| page.set(Page::RoughSheet),
+                    button { disabled: crate::exercise_lock::locked(), class: "subject-card", onclick: crate::exercise_lock::guard(move |_| page.set(Page::RoughSheet)),
                         span { class: "subject-icon", aria_hidden: "true", "✎" }
                         {language.text("रफ़ कॉपी", "Rough Sheet")}
                     }
-                    button { class: "subject-card", onclick: move |_| page.set(Page::TracingPractice),
+                    button { disabled: crate::exercise_lock::locked(), class: "subject-card", onclick: crate::exercise_lock::guard(move |_| page.set(Page::TracingPractice)),
                         span { class: "subject-icon", aria_hidden: "true", "⋯" }
                         {language.text("बिंदियों पर लिखो", "Tracing Practice")}
                     }
-                    button { class: "subject-card", onclick: move |_| page.set(Page::Worksheets),
+                    button { disabled: crate::exercise_lock::locked(), class: "subject-card", onclick: crate::exercise_lock::guard(move |_| page.set(Page::Worksheets)),
                         span { class: "subject-icon", aria_hidden: "true", "▤" }
                         {language.text("कार्यपत्रक", "Worksheets")}
                     }
@@ -329,19 +332,19 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
             }
             div { class: "cards", aria_label: language.text("कक्षा चुनो", "Choose a class"),
                 for level in grades {
-                    button { key: "{level}", class: if grade() == level { "primary" } else { "" },
-                        aria_pressed: grade() == level, onclick: move |_| grade.set(level), "{grade_label} {level}" }
+                    button { disabled: crate::exercise_lock::locked(), key: "{level}", class: if grade() == level { "primary" } else { "" },
+                        aria_pressed: grade() == level, onclick: crate::exercise_lock::guard(move |_| grade.set(level)), "{grade_label} {level}" }
                 }
             }
             if math_selected {
-                button { class: "primary", onclick: move |_| page.set(Page::Generated), "{new_practice_label}" }
+                button { disabled: crate::exercise_lock::locked(), class: "primary", onclick: crate::exercise_lock::guard(move |_| page.set(Page::Generated)), "{new_practice_label}" }
             }
             if chapters || math_selected {
                 {
                     let daily_key = daily_key.clone();
                     let id = subject.id.clone();
                     let selected_grade = grade();
-                    rsx! { button { class: "primary", onclick: move |_| {
+                    rsx! { button { disabled: crate::exercise_lock::locked(), class: "primary", onclick: crate::exercise_lock::guard(move |_| {
                         let mut next = data.peek().clone();
                         let date = state::india_date();
                         if has_completed_topic && !next.daily_recall.get(&daily_key).is_some_and(|round| round.date == date.to_string()) {
@@ -355,7 +358,7 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                             }
                         }
                         page.set(Page::DailyRecall);
-                    }, "{daily_label}"
+                    }), "{daily_label}"
                         if let Some(round) = daily {
                             small {
                                 if round.position == round.questions.len() { {language.text("आज पूरा हुआ", "Done today")} }
@@ -376,20 +379,20 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
             if chapters {
                 h2 { {language.text("अध्याय", "Chapters")} }
                 if grade() == 2 {
-                    button { class: "quiet", onclick: move |_| {
+                    button { disabled: crate::exercise_lock::locked(), class: "quiet", onclick: crate::exercise_lock::guard(move |_| {
                         grade.set(1);
                         group_id.set(if handwriting { "alphabet" } else { "vowels" }.into());
                         page.set(Page::Group);
-                    }, {language.text("अक्षर और मात्राएँ · कक्षा 1", "Letter practice · Class 1")} }
+                    }), {language.text("अक्षर और मात्राएँ · कक्षा 1", "Letter practice · Class 1")} }
                 }
             }
             for (id, title, guidance, separate) in groups.iter().copied() {
                 if chapters || separate {
                     {
                         let id = id.to_owned();
-                        rsx! { button { key: "{id}", class: "primary", onclick: move |_| {
+                        rsx! { button { disabled: crate::exercise_lock::locked(), key: "{id}", class: "primary", onclick: crate::exercise_lock::guard(move |_| {
                             group_id.set(id.clone()); page.set(Page::Group);
-                        }, "{title}" } }
+                        }), "{title}" } }
                     }
                 } else {
                     section { key: "{id}",
@@ -412,15 +415,15 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                     if topics.iter().any(|topic| topic.id == "barakhadi-1") {
                         div { class: "letter-picker", aria_label: "मात्रा चुनो",
                             for (index, mark) in ["", "◌ा", "◌ि", "◌ी", "◌ु", "◌ू", "◌े", "◌ै", "◌ो", "◌ौ", "◌ं", "◌ः"].into_iter().enumerate().skip(1) {
-                                button { key: "{mark}", onclick: move |_| {
+                                button { disabled: crate::exercise_lock::locked(), key: "{mark}", onclick: crate::exercise_lock::guard(move |_| {
                                     jump.set(Some(("barakhadi-1".into(), index)));
                                     page.set(Page::Trace);
-                                }, "{mark}" }
+                                }), "{mark}" }
                             }
-                            button { onclick: move |_| {
+                            button { disabled: crate::exercise_lock::locked(), onclick: crate::exercise_lock::guard(move |_| {
                                 jump.set(Some(("ri-one".into(), 0)));
                                 page.set(Page::Trace);
-                            }, "◌ृ" }
+                            }), "◌ृ" }
                         }
                     }
                 }
@@ -432,9 +435,9 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                                 if let Some(model) = curriculum::letter_model(&subject.id, topic, index) {
                                     {
                                         let topic_id = topic.progress_id();
-                                        rsx! { button { key: "{topic.exercises[index].id}",
+                                        rsx! { button { disabled: crate::exercise_lock::locked(), key: "{topic.exercises[index].id}",
                                             class: if handwriting { "handwriting-letter" } else { "" },
-                                            onclick: move |_| { jump.set(Some((topic_id.clone(), index))); page.set(Page::Trace); },
+                                            onclick: crate::exercise_lock::guard(move |_| { jump.set(Some((topic_id.clone(), index))); page.set(Page::Trace); }),
                                             "{model}"
                                         } }
                                     }
@@ -460,7 +463,8 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                     h1 { "{title}" }
                     if let Some(kind) = kind {
                         Activity { key: "jump-{id}-{index}", picture, kind, initial: ink, scale, language, handwriting,
-                            on_input: move |input| {
+                            on_input: move |input: progress::Input| {
+                                if !input.is_draft() && *exercise_locked.peek() { return; }
                                 let mut next = data.peek().clone();
                                 let step = Step { subject: &subject, topic: &topic, review: false, index };
                                 if let Some(done) = step.trace_only(&mut next, input, &state::sample_date()) {
@@ -492,7 +496,8 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                             p { class: "step", "{title} · {current} / {total}" }
                             Activity { kind: Kind::Choice(question.clone()),
                                 initial: Vec::new(), scale: PaperScale::from_saved(snapshot.scale, snapshot.vertical_scale),
-                                recall: true, language, handwriting, on_input: move |input| {
+                                recall: true, language, handwriting, on_input: move |input: progress::Input| {
+                                if !input.is_draft() && *exercise_locked.peek() { return; }
                                     if !matches!(input, progress::Input::Answer(_)) { return; }
                                     let mut next = data.peek().clone();
                                     if let Some(round) = next.daily_recall.get_mut(&daily_key) {
@@ -520,7 +525,7 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                         let id = skill.id(grade());
                         let resume = snapshot.sessions.contains_key(&state::session_key("math", &id, false));
                         rsx! {
-                            button { key: "{id}", onclick: move |_| start_generated.call(skill),
+                            button { disabled: crate::exercise_lock::locked(), key: "{id}", onclick: crate::exercise_lock::guard(move |_| start_generated.call(skill)),
                                 {skill.label(language)}
                                 if resume { small { {language.text("जारी रखो", "Resume")} } }
                             }
@@ -570,7 +575,8 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                     if recall { h2 { "{recall_label}" } } else { p { class: "step", "{practice_label} {index + 1} / {total}" } }
                     Activity { picture, kind, initial: ink, helper_draft, scale, recall, language, handwriting,
                         ruled_paper: content::Paper::for_subject(&subject), revision_source,
-                        on_input: move |input| {
+                        on_input: move |input: progress::Input| {
+                                if !input.is_draft() && *exercise_locked.peek() { return; }
                             let mut next = data.peek().clone();
                             let step = Step { subject: &subject, topic: &topic, review, index };
                             if let Some(outcome) = step.apply(&mut next, input, state::day(), &state::sample_date()) {
@@ -587,7 +593,7 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                   }
                 }
             } else {
-                rsx! { button { onclick: move |_| page.set(Page::Subject), "{back_to_subject}" } }
+                rsx! { button { disabled: crate::exercise_lock::locked(), onclick: crate::exercise_lock::guard(move |_| page.set(Page::Subject)), "{back_to_subject}" } }
             }
         }
         Page::Break => rsx! {
@@ -598,9 +604,9 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
             h1 { {language.text("अभ्यास पूरा", "Practice complete")} }
             if awarded { p { class: "reward", {language.text("★ एक सितारा", "★ One star")} } }
             if generated_round {
-                button { class: "primary", onclick: move |_| page.set(Page::Generated), "{new_practice_label}" }
+                button { disabled: crate::exercise_lock::locked(), class: "primary", onclick: crate::exercise_lock::guard(move |_| page.set(Page::Generated)), "{new_practice_label}" }
             } else {
-                button { class: "primary", onclick: move |_| page.set(Page::Subject), "{back_to_subject}" }
+                button { disabled: crate::exercise_lock::locked(), class: "primary", onclick: crate::exercise_lock::guard(move |_| page.set(Page::Subject)), "{back_to_subject}" }
             }
         },
         Page::RoughSheet => rsx! {
@@ -632,21 +638,22 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
         style { {appearance::background_styles()} }
         div { class: "app", "data-subject": "{accent}", "data-palette": appearance.palette.id(),
             "data-cover": appearance.background.id(), lang: language.code(),
-            header {
+            header { class: if exercise_locked() { "exercise-locked-header" } else { "" },
+                if exercise_locked() { exercise_lock::LockControl { language, compact: true } }
                 if matches!(page(), Page::Subject | Page::Aba | Page::Basic | Page::DailyExercises) {
-                    button { class: "quiet", onclick: move |_| page.set(Page::Subjects), {language.text("‹ विषय", "‹ Subjects")} }
+                    button { disabled: crate::exercise_lock::locked(), class: "quiet", onclick: crate::exercise_lock::guard(move |_| page.set(Page::Subjects)), {language.text("‹ विषय", "‹ Subjects")} }
                 } else if page() == Page::Parent(true) {
-                    button { class: "quiet", onclick: move |_| page.set(Page::Aba), "‹ {aba_name}" }
+                    button { disabled: crate::exercise_lock::locked(), class: "quiet", onclick: crate::exercise_lock::guard(move |_| page.set(Page::Aba)), "‹ {aba_name}" }
                 } else if page() == Page::Trace {
-                    button { class: "quiet", onclick: move |_| page.set(Page::Group), {language.text("‹ अध्याय", "‹ Chapter")} }
+                    button { disabled: crate::exercise_lock::locked(), class: "quiet", onclick: crate::exercise_lock::guard(move |_| page.set(Page::Group)), {language.text("‹ अध्याय", "‹ Chapter")} }
                 } else if page() != Page::Subjects {
-                    button { class: "quiet", onclick: move |_| page.set(Page::Subject), "⌂ {subject_name}" }
+                    button { disabled: crate::exercise_lock::locked(), class: "quiet", onclick: crate::exercise_lock::guard(move |_| page.set(Page::Subject)), "⌂ {subject_name}" }
                 }
                 strong { {language.text("सक्षम", "Saksham")} }
                 span { class: "stars", "★ {stars}" }
                 appearance::AppearanceButton { language }
                 if aba_selected || page() == Page::Basic || (math_selected && !matches!(page(), Page::Subjects | Page::Parent(_))) {
-                    button { lang: other_language.code(), onclick: move |_| {
+                    button { disabled: crate::exercise_lock::locked(), lang: other_language.code(), onclick: crate::exercise_lock::guard(move |_| {
                         let mut next = data.peek().clone();
                         if aba_selected || page() == Page::Basic {
                             next.aba_language = Some(other_language);
@@ -654,11 +661,11 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                             next.math_language = other_language;
                         }
                         commit.call(next);
-                    }, "{language_label}" }
+                    }), "{language_label}" }
                 }
                 if !matches!(page(), Page::Parent(_)) {
                     focus::FocusButton { controls: focus_controls, has_pin: pin.is_some(), language }
-                    button { class: "quiet", onclick: move |_| page.set(Page::Parent(page() == Page::Aba)), {language.text("बड़ों के लिए", "For parents")} }
+                    button { disabled: crate::exercise_lock::locked(), class: "quiet", onclick: crate::exercise_lock::guard(move |_| page.set(Page::Parent(page() == Page::Aba))), {language.text("बड़ों के लिए", "For parents")} }
                 }
             }
             appearance::AppearanceOptions { appearance, language,
@@ -703,7 +710,7 @@ fn topic_button(
         .contains_key(&state::session_key(subject, &id, review));
     let finished = !review && state.finished.contains(&format!("{subject}/{id}"));
     rsx! {
-        button { key: "{id}", onclick: move |_| start.call((id.clone(), review)),
+        button { disabled: crate::exercise_lock::locked(), key: "{id}", onclick: crate::exercise_lock::guard(move |_| start.call((id.clone(), review))),
             "{topic.title}"
             if paused { small { {language.text("जारी रखो", "Resume")} } }
             else if finished { small { {language.text("फिर अभ्यास करो", "Practise again")} } }

@@ -192,20 +192,21 @@ pub fn TracingPractice(
                     let choose = language.text("नमूना चुनो", "Choose a model");
                     let current = index.to_string();
                     rsx! {
-                        button { class: "quiet", onclick: move |_| set.set(None),
+                        button { disabled: crate::exercise_lock::locked(), class: "quiet", onclick: crate::exercise_lock::guard(move |_| set.set(None)),
                             {language.text("‹ सभी लिखाई अभ्यास", "‹ All tracing practice")}
                         }
                         h1 { "{heading}" }
+                        crate::exercise_lock::LockControl { language }
                         if let Set::Table(size) = group {
                             crate::activity::TableConcept { size, language }
                             TableTraceSheet { size, grade, scale, language, directory: directory.clone() }
                         } else if let Some(model) = models.get(index) {
                             label { "{choose}"
-                                select { value: "{current}", onchange: move |event| {
+                                select { disabled: crate::exercise_lock::locked(), value: "{current}", onchange: crate::exercise_lock::guard(move |event: Event<FormData>| {
                                     if let Ok(next) = event.value().parse::<usize>() {
                                         if next < total { position.set(next); }
                                     }
-                                },
+                                }),
                                     for (option, model) in models.iter().enumerate() {
                                         option { key: "{model.id}", value: "{option}", "{model.text}" }
                                     }
@@ -222,10 +223,10 @@ pub fn TracingPractice(
                                     path: directory.join(format!("trace-{subject}-{grade}-{}.json", model.id)) }
                             }}
                             div { class: "actions",
-                                button { disabled: index == 0, onclick: move |_| position.set(index.saturating_sub(1)),
+                                button { disabled: crate::exercise_lock::locked() || (index == 0), onclick: crate::exercise_lock::guard(move |_| position.set(index.saturating_sub(1))),
                                     {language.text("पिछला", "Previous")}
                                 }
-                                button { class: "primary", disabled: index + 1 >= total, onclick: move |_| position.set(index + 1),
+                                button { class: "primary", disabled: crate::exercise_lock::locked() || (index + 1 >= total), onclick: crate::exercise_lock::guard(move |_| position.set(index + 1)),
                                     {language.text("अगला", "Next")}
                                 }
                             }
@@ -236,14 +237,14 @@ pub fn TracingPractice(
                 h1 { "{title}" }
                 div { class: "cards",
                     for group in groups.iter().copied() {
-                        button { onclick: move |_| choose_set.call(group), {group.title(language)} }
+                        button { disabled: crate::exercise_lock::locked(), onclick: crate::exercise_lock::guard(move |_| choose_set.call(group)), {group.title(language)} }
                     }
                 }
                 if math {
                     h2 { {language.text("पहाड़े", "Times tables")} }
                     div { class: "cards",
                         for table in 1..=if grade == 1 { 5 } else { 10 } {
-                            button { key: "{table}", onclick: move |_| choose_set.call(Set::Table(table)),
+                            button { disabled: crate::exercise_lock::locked(), key: "{table}", onclick: crate::exercise_lock::guard(move |_| choose_set.call(Set::Table(table))),
                                 { Set::Table(table).title(language) }
                             }
                         }
@@ -272,7 +273,7 @@ fn TableTraceSheet(size: u8, grade: u8, scale: PaperScale, language: Language, d
                     lines: 10, table_trace: Some(size), on_ink: move |ink| save.call(ink) }
                 if failed() {
                     p { role: "alert", {language.text("लिखाई सहेजी नहीं गई।", "Your writing could not be saved.")} }
-                    button { onclick: move |_| save.call(draft()), {language.text("फिर सहेजें", "Try saving again")} }
+                    button { disabled: crate::exercise_lock::locked(), onclick: crate::exercise_lock::guard(move |_| save.call(draft())), {language.text("फिर सहेजें", "Try saving again")} }
                 }
             } else {
                 p { role: "alert", {language.text("सहेजी लिखाई नहीं खुली।", "Your saved writing could not be opened.")} }
@@ -344,7 +345,7 @@ fn TraceModel(
                     on_ink: move |ink| save.call(ink) }
                 if failed() {
                     p { role: "alert", {language.text("लिखाई सहेजी नहीं गई।", "Your writing could not be saved.")} }
-                    button { onclick: move |_| save.call(draft()), {language.text("फिर सहेजें", "Try saving again")} }
+                    button { disabled: crate::exercise_lock::locked(), onclick: crate::exercise_lock::guard(move |_| save.call(draft())), {language.text("फिर सहेजें", "Try saving again")} }
                 }
             } else {
                 p { role: "alert", {language.text("सहेजी लिखाई नहीं खुली।", "Your saved writing could not be opened.")} }

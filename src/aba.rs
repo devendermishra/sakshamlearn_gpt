@@ -34,12 +34,12 @@ pub fn AbaLearning(
         section { "data-aba-learning": "true", lang: language.code(),
             h1 { "{name}" }
             nav { class: "actions", aria_label: name,
-                button { class: if tab() == 0 { "primary" } else { "" },
-                    aria_pressed: tab() == 0, onclick: move |_| tab.set(0), {language.text("कैलेंडर", "Calendar")} }
-                button { class: if tab() == 1 { "primary" } else { "" },
-                    aria_pressed: tab() == 1, onclick: move |_| tab.set(1), {checklist_title(language)} }
-                button { class: if tab() == 2 { "primary" } else { "" }, aria_pressed: tab() == 2, onclick: move |_| tab.set(2), {language.text("चित्र कार्ड", "Flashcards")} }
-                button { class: if tab() == 3 { "primary" } else { "" }, aria_pressed: tab() == 3, onclick: move |_| tab.set(3), {language.text("अभ्यास", "Exercises")} }
+                button { disabled: crate::exercise_lock::locked(), class: if tab() == 0 { "primary" } else { "" },
+                    aria_pressed: tab() == 0, onclick: crate::exercise_lock::guard(move |_| tab.set(0)), {language.text("कैलेंडर", "Calendar")} }
+                button { disabled: crate::exercise_lock::locked(), class: if tab() == 1 { "primary" } else { "" },
+                    aria_pressed: tab() == 1, onclick: crate::exercise_lock::guard(move |_| tab.set(1)), {checklist_title(language)} }
+                button { disabled: crate::exercise_lock::locked(), class: if tab() == 2 { "primary" } else { "" }, aria_pressed: tab() == 2, onclick: crate::exercise_lock::guard(move |_| tab.set(2)), {language.text("चित्र कार्ड", "Flashcards")} }
+                button { disabled: crate::exercise_lock::locked(), class: if tab() == 3 { "primary" } else { "" }, aria_pressed: tab() == 3, onclick: crate::exercise_lock::guard(move |_| tab.set(3)), {language.text("अभ्यास", "Exercises")} }
             }
             if tab() == 1 {
                 Checklist { date, language, data, commit, on_practice: move |id| { selected.set(id); tab.set(3); } }
@@ -265,7 +265,7 @@ fn Checklist(
                                         small { {language.text(item.hindi_prompt, item.prompt)} }
                                     }
                                 }
-                                button { onclick: move |_| on_practice.call(item.id.to_string()), {language.text("अभ्यास खोलें", "Open practice")} }
+                                button { disabled: crate::exercise_lock::locked(), onclick: crate::exercise_lock::guard(move |_| on_practice.call(item.id.to_string())), {language.text("अभ्यास खोलें", "Open practice")} }
                             }
                         }
                     }

@@ -140,14 +140,14 @@ fn Practice(
         progress.set(next);
     });
     let position = progress.read().position;
-    let advance = move |_| {
+    let advance = crate::exercise_lock::guard(move |_| {
         let current = progress.peek();
         let mut next = current.clone();
         drop(current);
         next.position += 1;
         pending_answer.set(None);
         persist.call(next);
-    };
+    });
     let edit = move |draft: Draft| {
         let mut next = progress.peek().clone();
         next.drafts.insert(position, draft);
@@ -156,7 +156,7 @@ fn Practice(
     rsx! {
         section { class: "learner-page worksheet-practice",
             nav { class: "actions",
-                button { class: "quiet", onclick: move |_| on_back.call(()),
+                button { disabled: crate::exercise_lock::locked(), class: "quiet", onclick: crate::exercise_lock::guard(move |_| on_back.call(())),
                     {language.text("‹ सभी कार्यपत्रक", "‹ All worksheets")}
                 }
                 if !paused() && position < sheet.tasks.len() && saved.is_ok() {
@@ -200,12 +200,12 @@ fn Practice(
                 }
             } else {
                 h2 { {language.text("कार्यपत्रक पूरा", "Worksheet complete")} }
-                button { class: "primary", onclick: move |_| {
+                button { disabled: crate::exercise_lock::locked(), class: "primary", onclick: crate::exercise_lock::guard(move |_| {
                     let mut next = progress.peek().clone();
                     next.position = 0;
                     next.drafts.clear();
                     persist.call(next);
-                }, {language.text("फिर से अभ्यास करो", "Practise again")} }
+                }), {language.text("फिर से अभ्यास करो", "Practise again")} }
             }
         }
     }
@@ -261,6 +261,7 @@ pub(crate) fn Exercise(
     };
     rsx! {
         div { class: "worksheet-task",
+            crate::exercise_lock::LockControl { language }
             p { class: "worksheet-action", "{verb}" }
             if !task.context.is_empty() { p { class: "worksheet-context", lang: text_language(&task.context, language).code(), "{task.context}" } }
             h2 { lang: prompt_language.code(), "{task.prompt}" }
@@ -356,7 +357,7 @@ pub(crate) fn Exercise(
                     {language.text("फिर कोशिश करो।", "Try again.")} " {hint}"
                 }
             }
-            button { class: "primary", disabled: !can_continue, onclick: move |_| on_next.call(()),
+            button { class: "primary", disabled: crate::exercise_lock::locked() || (!can_continue), onclick: crate::exercise_lock::guard(move |_| on_next.call(())),
                 {language.text("जारी रखो", "Continue")}
             }
         }

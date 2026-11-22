@@ -591,3 +591,9 @@ main:has(.basic-pattern-mode) { max-width:none; padding:.75rem 1rem 1rem; }
 .daily-task-source { overflow-wrap: anywhere; }
 .daily-task { min-width: 0; }
 .daily-task .pencil-frame { max-width: 100%; }
+
+.exercise-lock { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; margin-block: .4rem; }
+.exercise-lock [role=status] { font-size: .9rem; }
+[data-ink-tool][aria-pressed=true], [data-pencil-action=pen][aria-pressed=true], [data-pencil-action=eraser][aria-pressed=true] { outline: 3px solid currentColor; outline-offset: 1px; }
+
+.exercise-locked-header { position: sticky; top: 0; z-index: 20; }

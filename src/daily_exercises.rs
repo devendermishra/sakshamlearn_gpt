@@ -460,7 +460,7 @@ pub fn DailyExercises(directory: PathBuf, math_language: Language, scale: PaperS
             }
             if let Some(task) = active {
                 nav { class: "actions",
-                    button { onclick: move |_| { let mut n=progress(); n.active=None; n.paused=false; persist.call(n); }, "Back to day · दिन पर लौटें" }
+                    button { disabled: crate::exercise_lock::locked(), onclick: crate::exercise_lock::guard(move |_| { let mut n=progress(); n.active=None; n.paused=false; persist.call(n); }), "Back to day · दिन पर लौटें" }
                     button { onclick: move |_| { let mut n=progress(); n.paused=true; persist.call(n); }, "Take a break · थोड़ा आराम" }
                 }
                 p { "Day {day.number} · दिन {day.number} · {subject_name(&task.subject)}" }
@@ -470,7 +470,7 @@ pub fn DailyExercises(directory: PathBuf, math_language: Language, scale: PaperS
                 if current.completed.contains(&task.id) {
                     p { "✓ Previously completed · पहले पूरा किया" }
                     { let retry_task=task.clone(); rsx! {
-                        button { onclick: move |_| { let mut n=progress(); n.retry(&retry_task); persist.call(n); }, "Try again · फिर अभ्यास करें" }
+                        button { disabled: crate::exercise_lock::locked(), onclick: crate::exercise_lock::guard(move |_| { let mut n=progress(); n.retry(&retry_task); persist.call(n); }), "Try again · फिर अभ्यास करें" }
                     } }
                 }
                 if current.paused {
@@ -480,15 +480,15 @@ pub fn DailyExercises(directory: PathBuf, math_language: Language, scale: PaperS
                     TaskRunner { key: "{task.id}-{current.attempt}", task: task.clone(), progress: progress(), persist, math_language, scale }
                 }
             } else {
-                button { class: "primary", onclick: move |_| {
+                button { disabled: crate::exercise_lock::locked(), class: "primary", onclick: crate::exercise_lock::guard(move |_| {
                     let mut n=progress(); n.day=n.next_day(); n.active=None; persist.call(n);
-                }, "Continue next unfinished day · अगला अधूरा दिन" }
+                }), "Continue next unfinished day · अगला अधूरा दिन" }
                 details {
                     summary { "Choose a day · दिन चुनें" }
                     nav { class: "daily-days", aria_label: "Choose a day",
                         for d in &PLAN.days {
-                            button { "data-day": "{d.number}", aria_pressed: current.day==d.number,
-                                onclick: move |_| { let mut n=progress(); n.day=d.number; n.active=None; n.paused=false; persist.call(n); },
+                            button { disabled: crate::exercise_lock::locked(), "data-day": "{d.number}", aria_pressed: current.day==d.number,
+                                onclick: crate::exercise_lock::guard(move |_| { let mut n=progress(); n.day=d.number; n.active=None; n.paused=false; persist.call(n); }),
                                 "{d.number}" if current.day_complete(d) { " ✓" }
                             }
                         }
@@ -502,18 +502,18 @@ pub fn DailyExercises(directory: PathBuf, math_language: Language, scale: PaperS
                         section { class: "daily-subject", "data-daily-subject": subject,
                             h2 { "{subject_name(subject)}" }
                             p { "{day.tasks.iter().filter(|t| t.subject==subject && current.completed.contains(&t.id)).count()} / {day.tasks.iter().filter(|t| t.subject==subject).count()} tasks · अभ्यास" }
-                            button { class: "primary", onclick: move |_| {
+                            button { disabled: crate::exercise_lock::locked(), class: "primary", onclick: crate::exercise_lock::guard(move |_| {
                                 let mut n=progress();
                                 let tasks=&PLAN.days[n.day-1].tasks;
                                 n.active=tasks.iter().find(|t| t.subject==subject && !n.completed.contains(&t.id))
                                     .or_else(|| tasks.iter().find(|t| t.subject==subject)).map(|t| t.id.clone());
                                 persist.call(n);
-                            }, "Start / Resume · शुरू / जारी" }
+                            }), "Start / Resume · शुरू / जारी" }
                             details { summary { "Goals and exercises · लक्ष्य और अभ्यास" }
                                 div { class: "daily-goals",
                                     for task in day.tasks.iter().filter(|t| t.subject==subject) {
                                         { let id=task.id.clone(); rsx! {
-                                            button { "data-task-id": "{task.id}", onclick: move |_| { let mut n=progress(); n.active=Some(id.clone()); persist.call(n); },
+                                            button { disabled: crate::exercise_lock::locked(), "data-task-id": "{task.id}", onclick: crate::exercise_lock::guard(move |_| { let mut n=progress(); n.active=Some(id.clone()); persist.call(n); }),
                                                 if current.completed.contains(&task.id) { "✓ " }
                                                 "{task.goal} · {task.source_label} · #{task.number()}"
                                             }
@@ -588,22 +588,23 @@ fn TaskRunner(
     };
     let next = progress.clone();
     let done_task = task.clone();
-    let done = use_callback(move |_| {
+    let done = use_callback(crate::exercise_lock::guard(move |_| {
         let mut n = next.clone();
         n.advance(&done_task);
         persist.call(n);
-    });
+    }));
     match &task.source {
         Source::Basic { index } => {
             let sheet = &basic::SHEETS[*index];
             let initial = progress.pencil.get(&task.id).cloned().unwrap_or_default();
             let id = task.id.clone();
             rsx! { div { class: "daily-task",
+                crate::exercise_lock::LockControl { language }
                 p { "Start at the marker and follow the path with your pen. निशान से पथ पर पेन चलाएँ।" }
                 basic::PencilCanvas { src: basic::artwork(&sheet.file), fit_page: sheet.row==0,
                     crop: basic::pattern_crop(sheet.page), initial, language,
                     on_edit: move |strokes| { let mut n=progress.clone(); n.pencil.insert(id.clone(),strokes); persist.call(n); } }
-                button { class: "primary", onclick: move |_| done.call(()), "Mark complete · पूरा चिह्नित करें" }
+                button { disabled: crate::exercise_lock::locked(), class: "primary", onclick: crate::exercise_lock::guard(move |_| done.call(())), "Mark complete · पूरा चिह्नित करें" }
             } }
         }
         Source::Worksheet { sheet, index } => {
@@ -652,6 +653,7 @@ fn TaskRunner(
                 initial, scale, language, helper_draft, revision_source,
                 handwriting: task.subject=="en", ruled_paper: Paper::for_subject(&task.subject),
                 on_input: move |input: Input| {
+                    if !input.is_draft() && crate::exercise_lock::locked() { return; }
                     let mut n=progress.clone();
                     if n.lesson_input(&task,input,language) { persist.call(n); }
                 }

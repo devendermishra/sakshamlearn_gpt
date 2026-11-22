@@ -42,6 +42,48 @@ const ink = Array.from({length: count}, (_, i) => initial[i] ?? []);
 const cells = [];
 const message = container.querySelector("[role=status]");
 let active = null;
+let tool = 'pen';
+
+// Distance between an eraser sweep and each segment of a normalized stroke.
+function strokeHit(stroke, from, to, rect) {
+ const pixel = p => [p[0]*rect.width,p[1]*rect.height];
+ const a=pixel(from), b=pixel(to);
+ function distance(p,a,b) {
+  const dx=b[0]-a[0],dy=b[1]-a[1],length=dx*dx+dy*dy;
+  const t=length?Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/length)):0;
+  return Math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dy);
+ }
+ const cross=(p,q,r)=>(q[0]-p[0])*(r[1]-p[1])-(q[1]-p[1])*(r[0]-p[0]);
+ for(let i=0;i<stroke.length;i++) {
+  const c=pixel(stroke[i]),d=pixel(stroke[Math.max(0,i-1)]);
+  const crosses=cross(a,b,c)*cross(a,b,d)<0 && cross(c,d,a)*cross(c,d,b)<0;
+  if(crosses || Math.min(distance(a,c,d),distance(b,c,d),distance(c,a,b),distance(d,a,b))<=8)return true;
+ }
+ return false;
+}
+
+const editable = [];
+function eraserPoint(event, canvas) {
+ const rect=canvas.getBoundingClientRect();
+ return [(event.clientX-rect.left)/rect.width,(event.clientY-rect.top)/rect.height];
+}
+function eraseAt(index, to) {
+ const source=cells[index].getBoundingClientRect();
+ for(const target of editable) {
+  const rect=cells[target].getBoundingClientRect();
+  const local=p=>[(source.left+p[0]*source.width-rect.left)/rect.width,(source.top+p[1]*source.height-rect.top)/rect.height];
+  const from=local(active.last),end=local(to);
+  let changed=false;
+  for(let i=ink[target].length-1;i>=0;i--) {
+   if(strokeHit(ink[target][i],from,end,rect)) {
+    active.removed.push({index:target,position:i,stroke:ink[target].splice(i,1)[0]});changed=true;
+   }
+  }
+  if(changed)draw(target);
+ }
+ active.last=to;
+}
+
 let latest = -1;
 let submitted = false;
 let frame = 0;
@@ -204,11 +246,11 @@ function draw(index) {
         paintTraceGuide(ctx, guide(canvas, index));
     }
     for (const stroke of ink[index]) line(ctx, stroke, "#223c37", 5);
-    if (active?.index === index) active.rendered = ink[index].at(-1).length;
+    if (active?.index === index && !active.removed) active.rendered = ink[index].at(-1).length;
 }
 
 function drawActive(index) {
-    if (active?.index !== index) return;
+    if (active?.index !== index || active.removed) return;
     const stroke = ink[index].at(-1);
     if (stroke.length <= active.rendered) return;
     line(cells[index].getContext("2d"), stroke.slice(Math.max(0, active.rendered - 1)), "#223c37", 5);
@@ -289,11 +331,16 @@ function point(event, canvas) {
 
 function bind(canvas, index) {
     if (readonly || (modelCell && (index === 0 || index === columns))) return;
+    editable.push(index);
     canvas.addEventListener("pointerdown", event => {
         const accepted = event.pointerType === "pen" || (allowMouse && event.pointerType === "mouse");
         if (submitted || paused || document.hidden || active || !accepted || event.button !== 0) return;
         event.preventDefault();
         canvas.setPointerCapture(event.pointerId);
+        if(tool==='eraser') {
+            active={id:event.pointerId,index,last:eraserPoint(event,canvas),removed:[]};
+            eraseAt(index,active.last);return;
+        }
         ink[index].push([point(event, canvas)]);
         active = {id: event.pointerId, index, rendered: 0};
         checkpoint = performance.now();
@@ -301,6 +348,13 @@ function bind(canvas, index) {
     }, {signal: listeners.signal});
     canvas.addEventListener("pointermove", event => {
         if (active?.id !== event.pointerId) return;
+        if(active.removed) {
+            event.preventDefault();
+            const samples=event.getCoalescedEvents?.()??[];
+            for(const sample of samples.length?samples:[event])eraseAt(index,eraserPoint(sample,canvas));
+            if(performance.now()-checkpoint>=1000){dioxus.send({ink,done:false});checkpoint=performance.now();}
+            return;
+        }
         const stroke = ink[index].at(-1);
         const before = stroke.length;
         const events = event.getCoalescedEvents?.() ?? [];
@@ -316,6 +370,10 @@ function bind(canvas, index) {
     }, {signal: listeners.signal});
     function end(event) {
         if (active?.id !== event.pointerId) return;
+        if(active.removed) {
+            if(event.type==='pointerup')eraseAt(index,eraserPoint(event,canvas));
+            finishActive();return;
+        }
         if (event.type === "pointerup" && ink[index].at(-1).length < 4096) {
             ink[index].at(-1).push(point(event, canvas));
         }
@@ -326,19 +384,20 @@ function bind(canvas, index) {
 
 function finishActive() {
     if (!active) return;
-    const {index} = active;
+    const {index,removed} = active;
     if (!paused && !document.hidden && container.isConnected) drawActive(index);
     active = null;
     cancelAnimationFrame(frame);
     frame = 0;
     latest = index;
-    history.push(index);
+    if(removed){if(removed.length)history.push({index,removed});}
+    else history.push({index,stroke:ink[index].at(-1)});
     update();
 }
 
 for (let i = 0; i < count; i++) {
     cells.push(paper(i));
-    for (const _ of ink[i]) history.push(i);
+    for (const stroke of ink[i]) history.push({index:i,stroke});
     if (modelCell && i === columns) cells[i].classList.add("spacer");
     if (square && modelCell && i === 0) cells[i].hidden = true;
     draw(i);
@@ -353,6 +412,12 @@ function hasCompleteCopy(rowStart) {
 }
 
 if (!readonly) {
+    for(const mode of ['pen','eraser']) {
+        container.querySelector('[data-ink-tool='+mode+']')?.addEventListener('click',()=>{
+            finishActive();tool=mode;
+            for(const value of ['pen','eraser'])container.querySelector('[data-ink-tool='+value+']')?.setAttribute('aria-pressed',String(value===tool));
+        },{signal:listeners.signal});
+    }
     window.addEventListener('blur', finishActive, {signal: listeners.signal});
     window.addEventListener('pagehide', finishActive, {signal: listeners.signal});
     document.addEventListener('click', finishActive, {capture: true, signal: listeners.signal});
@@ -366,9 +431,11 @@ if (!readonly) {
     }, {signal: listeners.signal});
     container.querySelector("[data-undo]").onclick = () => {
         if (active || submitted || !history.length) return;
-        latest = history.pop();
-        ink[latest].pop();
-        draw(latest);
+        const action=history.pop();latest=action.index;
+        if(action.removed)for(const item of [...action.removed].reverse())ink[item.index].splice(item.position,0,item.stroke);
+        else {const position=ink[latest].indexOf(action.stroke);if(position>=0)ink[latest].splice(position,1);}
+        if(action.removed)for(const index of new Set(action.removed.map(item=>item.index)))draw(index);
+        else draw(latest);
         update();
     };
     container.querySelector("[data-clear]").onclick = () => {
@@ -381,7 +448,7 @@ if (!readonly) {
     };
     const done = container.querySelector("[data-done]");
     if (done) done.onclick = () => {
-        if (active || submitted) return;
+        if (active || submitted || done.disabled) return;
         if (noteColumns && !ink.slice(noteColumns).some(cell => cell.length)) {
             message.textContent = text("पहले रेखा के नीचे जवाब लिखो।", "Write the answer below the line first.");
             return;

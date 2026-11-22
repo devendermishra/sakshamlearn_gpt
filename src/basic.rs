@@ -70,15 +70,15 @@ pub fn Basic(directory: PathBuf, language: Language) -> Element {
                     button { onclick: move |_| persist.call(progress()), {language.text("फिर सहेजें", "Retry save")} }
                 }
                 nav { class: "actions",
-                    button { onclick: move |_| page_list.toggle(), {language.text("सभी पन्ने", "All pages")} }
+                    button { disabled: crate::exercise_lock::locked(), onclick: crate::exercise_lock::guard(move |_| page_list.toggle()), {language.text("सभी पन्ने", "All pages")} }
                     button { onclick: move |_| { let mut n=progress(); n.paused=!n.paused; persist.call(n); }, {language.text("आराम / जारी रखें", "Break / Continue")} }
                 }
                 if page_list() {
                     div { class: "practice-page-grid",
                         for page in 1..=14 {
-                            button { onclick: move |_| {
+                            button { disabled: crate::exercise_lock::locked(), onclick: crate::exercise_lock::guard(move |_| {
                                 let mut n=progress(); n.position=SHEETS.iter().position(|s| s.page==page).unwrap(); n.paused=false; persist.call(n); page_list.set(false);
-                            }, "{language.text(\"पन्ना\", \"Page\")} {page}" }
+                            }), "{language.text(\"पन्ना\", \"Page\")} {page}" }
                         }
                     }
                 } else if progress.read().paused {
@@ -86,6 +86,7 @@ pub fn Basic(directory: PathBuf, language: Language) -> Element {
                     button { class: "primary", onclick: move |_| { let mut n=progress(); n.paused=false; persist.call(n); }, {language.text("जारी रखें", "Continue")} }
                 } else {
                   div { key: "pencil-band-{position}", class: "pencil-activity",
+                    crate::exercise_lock::LockControl { language }
                     div { class: "visual-instruction",
                         crate::pictures::Image { id: "pencil".to_string(), language }
                         p { {if sheet.row == 0 { language.text("शुरू के निशान से बिंदुओं पर पेन चलाएँ।", "Start at the marker and follow the dots with your pen.") } else { language.text("शुरू के निशान से पथ पर धीरे चलें। उँगली से बटन छुएँ, पेन से लिखें।", "Start at the marker and follow the path slowly. Tap controls with a finger; draw with the pen.") }} }
@@ -98,11 +99,11 @@ pub fn Basic(directory: PathBuf, language: Language) -> Element {
                         img { class: "pencil-reference", src: artwork(&format!("pencil-{}.jpg",sheet.page)), alt: language.text("पूरा पेंसिल अभ्यास पन्ना", "Full pencil-control worksheet") }
                     }
                     nav { class: "actions",
-                        button { disabled: position==0, onclick: move |_| { let mut n=progress(); n.position=position-1; persist.call(n); }, {language.text("पिछला", "Previous")} }
-                        button { class: "primary", aria_pressed: progress.read().completed.contains(&position), onclick: move |_| {
+                        button { disabled: crate::exercise_lock::locked() || (position==0), onclick: crate::exercise_lock::guard(move |_| { let mut n=progress(); n.position=position-1; persist.call(n); }), {language.text("पिछला", "Previous")} }
+                        button { disabled: crate::exercise_lock::locked(), class: "primary", aria_pressed: progress.read().completed.contains(&position), onclick: crate::exercise_lock::guard(move |_| {
                             let mut n=progress(); if !n.completed.insert(position) { n.completed.remove(&position); } persist.call(n);
-                        }, {if progress.read().completed.contains(&position) { language.text("✓ पूरा", "✓ Complete") } else { language.text("पूरा चिह्नित करें", "Mark complete") }} }
-                        button { disabled: position+1==SHEETS.len(), onclick: move |_| { let mut n=progress(); n.position=position+1; persist.call(n); }, {language.text("अगला", "Next")} }
+                        }), {if progress.read().completed.contains(&position) { language.text("✓ पूरा", "✓ Complete") } else { language.text("पूरा चिह्नित करें", "Mark complete") }} }
+                        button { disabled: crate::exercise_lock::locked() || (position+1==SHEETS.len()), onclick: crate::exercise_lock::guard(move |_| { let mut n=progress(); n.position=position+1; persist.call(n); }), {language.text("अगला", "Next")} }
                     }
                   }
                 }
@@ -137,6 +138,8 @@ pub(crate) fn PencilCanvas(
     rsx! {
         div { id: "pencil-workspace", class: if fit_page { "pencil-full-page" } else { "" },
             nav { class: "actions",
+                button { "data-pencil-action": "pen", aria_pressed: "true", {language.text("पेन", "Pen")} }
+                button { "data-pencil-action": "eraser", aria_pressed: "false", {language.text("रबड़", "Eraser")} }
                 button { "data-pencil-action": "undo", {language.text("पिछला निशान हटाएँ", "Undo stroke")} }
                 button { "data-pencil-action": "clear", {language.text("इस अभ्यास को साफ करें", "Clear exercise")} }
                 if !fit_page {

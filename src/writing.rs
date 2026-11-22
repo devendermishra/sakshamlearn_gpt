@@ -233,9 +233,11 @@ pub fn InkPad(
             }
             if !readonly {
                 div { class: "actions",
+                    button { "data-ink-tool": "pen", aria_pressed: "true", {language.text("पेन", "Pen")} }
+                    button { "data-ink-tool": "eraser", aria_pressed: "false", {language.text("रबड़", "Eraser")} }
                     button { "data-undo": "", {language.text("एक रेखा हटाओ", "Undo last stroke")} }
                     button { "data-clear": "", {language.text("फिर से लिखो", "Clear writing")} }
-                    if can_finish { button { class: "primary", "data-done": "", "{done}" } }
+                    if can_finish { button { disabled: crate::exercise_lock::locked(), class: "primary", "data-done": "", "{done}" } }
                 }
                 p { role: "status", class: "ink-status" }
             }

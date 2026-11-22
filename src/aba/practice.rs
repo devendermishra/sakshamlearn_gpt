@@ -192,7 +192,7 @@ pub(super) fn Practice(
         .unwrap_or_default();
     let edit_selected = selected.clone();
     let record_selected = selected.clone();
-    let record = use_callback(move |response: String| {
+    let record = use_callback(crate::exercise_lock::guard(move |response: String| {
         let mut next = progress();
         let r = next.activities.entry(record_selected.clone()).or_default();
         r.responses.insert(r.position, response);
@@ -200,7 +200,7 @@ pub(super) fn Practice(
         r.helped = false;
         r.boundary = r.position % 3 == 0;
         persist.call(next);
-    });
+    }));
     let edit = use_callback(move |r: Round| {
         let mut next = progress();
         next.activities.insert(edit_selected.clone(), r);
@@ -211,9 +211,10 @@ pub(super) fn Practice(
     }
     rsx! {
      section { class:"aba-practice",
+      crate::exercise_lock::LockControl { language }
       h2 { {if flashcards {language.text("चित्र कार्ड","Flashcards")} else {language.text("अभ्यास","Exercises")}} }
       label { {language.text("अभ्यास चुनें","Choose practice")}
-       select { value:"{selected}",onchange:move|e:Event<FormData>|{let id=e.value();let mut n=progress();n.selected=id.clone();persist.call(n);on_select.call(id);},
+       select { disabled: crate::exercise_lock::locked(), value:"{selected}",onchange:crate::exercise_lock::guard(move|e:Event<FormData>|{let id=e.value();let mut n=progress();n.selected=id.clone();persist.call(n);on_select.call(id);}),
         for plan in home_plans::PLANS {
          optgroup { label:language.text(plan.hindi_title,plan.title),
           for a in plan.activities {option {value:a.id,{language.text(a.hindi_title,a.title)}}}
@@ -246,8 +247,8 @@ pub(super) fn Practice(
       } else if round.boundary {
        h3 {{language.text("तीन अभ्यास पूरे","Three tasks practised")}}
        p {{language.text("फिर से करें या अगले तीन अभ्यास चुनें।","Repeat this round or continue with three more tasks.")}}
-       button {onclick:{let r=round.clone();move|_|{let mut r=r.clone();r.position=r.position.saturating_sub(3);r.boundary=false;r.choices.retain(|p,_|*p<r.position);edit.call(r);}},{language.text("दोहराएँ","Repeat")}}
-       button {class:"primary",onclick:{let r=round.clone();move|_|{let mut r=r.clone();r.boundary=false;edit.call(r);}},{language.text("अगले तीन","Next three")}}
+       button { disabled: crate::exercise_lock::locked(),onclick:crate::exercise_lock::guard({let r=round.clone();move|_|{let mut r=r.clone();r.position=r.position.saturating_sub(3);r.boundary=false;r.choices.retain(|p,_|*p<r.position);edit.call(r);}}),{language.text("दोहराएँ","Repeat")}}
+       button { disabled: crate::exercise_lock::locked(),class:"primary",onclick:crate::exercise_lock::guard({let r=round.clone();move|_|{let mut r=r.clone();r.boundary=false;edit.call(r);}}),{language.text("अगले तीन","Next three")}}
        button {onclick:move|_|{let mut r=round.clone();r.paused=true;edit.call(r);},{language.text("आराम करें","Take a break")}}
       } else if !ids.is_empty() {
        {
@@ -294,14 +295,14 @@ pub(super) fn Practice(
             }
            }
            if let Some(answer)=chosen {p {role:"status",{if answer==expected {language.text("अच्छा प्रयास!","Well done!")}else{language.text("फिर देखें और कोशिश करें।","Look again and try once more.")}}}}
-           if chosen==Some(expected){button {class:"primary",onclick:move|_|record.call(response.to_string()),{language.text("अगला","Next")}}}
+           if chosen==Some(expected){button { disabled: crate::exercise_lock::locked(),class:"primary",onclick:crate::exercise_lock::guard(move|_|record.call(response.to_string())),{language.text("अगला","Next")}}}
           }
           details {class:"learner-help",summary {{language.text("बड़ों के लिए उदाहरण","Adult model")}} p {"{model}"}}
           p {{language.text("बड़े जवाब दर्ज करें।","An adult records the response.")}}
           div {class:"actions",
-           button {onclick:move|_|record.call("Independent".into()),{language.text("खुद किया","Independent")}}
-           button {onclick:move|_|record.call("With help".into()),{language.text("मदद से किया","With help")}}
-           button {onclick:move|_|record.call("Try later".into()),{language.text("बाद में करें","Try later")}}
+           button { disabled: crate::exercise_lock::locked(),onclick:crate::exercise_lock::guard(move|_|record.call("Independent".into())),{language.text("खुद किया","Independent")}}
+           button { disabled: crate::exercise_lock::locked(),onclick:crate::exercise_lock::guard(move|_|record.call("With help".into())),{language.text("मदद से किया","With help")}}
+           button { disabled: crate::exercise_lock::locked(),onclick:crate::exercise_lock::guard(move|_|record.call("Try later".into())),{language.text("बाद में करें","Try later")}}
           }
          }
         }

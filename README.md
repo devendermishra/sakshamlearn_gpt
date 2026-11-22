@@ -70,6 +70,14 @@ Worksheets are bundled for offline use. The six Word packs can be re-imported wi
 python tools/import_worksheets.py <folder-with-the-six-docx-files> src/content/worksheets.json
 ```
 
+## Eraser and exercise lock
+
+Choose **Eraser** on any editable writing surface and touch or drag across learner ink to remove whole strokes. **Undo** restores everything removed by the last eraser gesture. Printed guides and worksheet artwork remain intact. Choose **Pen** to write again. Tablet input uses the stylus; desktop previews also accept the mouse.
+
+Choose **Lock exercise** to keep the current practice item open. Navigation, item selection, resets, and actions that complete or advance an item are disabled until **Unlock exercise** is tapped. Writing, erasing, undo, zoom, and checks that stay on the item remain available. Breaks retain the lock and resume the same item. The lock needs no PIN and starts off after restarting the app. It is separate from parent-controlled Focus Mode.
+
+Run `node tests/eraser-ui.cjs` and `node tests/exercise-lock-ui.cjs` after a desktop build. On Android, verify stylus erasing, palm rejection, accidental navigation taps, break/resume, and persistence after restarting.
+
 ## Parent-controlled Focus Mode
 
 Set a parent PIN once through **For parents** or the Focus Mode shortcut. Tap the **Focus Mode** shortcut to start. To leave Focus Mode from Saksham, tap the shortcut again and enter the parent PIN. The parent settings button opens the same PIN prompt.

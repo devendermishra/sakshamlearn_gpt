@@ -37,7 +37,7 @@ pub fn AnswerFeedback(correct: bool, text: String) -> Element {
 fn CorrectAnswer(language: Language, on_advance: EventHandler<()>) -> Element {
     rsx! {
         AnswerFeedback { correct: true, text: language.text("सही!", "Correct!") }
-        button { class: "primary", onclick: move |_| on_advance.call(()),
+        button { disabled: crate::exercise_lock::locked(), class: "primary", onclick: crate::exercise_lock::guard(move |_| on_advance.call(())),
             {language.text("आगे", "Next")}
         }
     }
@@ -98,11 +98,11 @@ fn SolveActivity(
                     if correct() == Some(false) {
                         AnswerFeedback { correct: false, text: language.text("फिर कोशिश करो।", "Try again next time.") }
                     }
-                    button { class: "primary", onclick: move |_| {
+                    button { disabled: crate::exercise_lock::locked(), class: "primary", onclick: crate::exercise_lock::guard(move |_| {
                         let input = if legacy { Input::Submit(work.clone()) }
                             else { Input::SubmitSolution { ink: work.clone(), correct: false } };
                         on_input.call(input);
-                    }, {language.text("आगे", "Next")} }
+                    }), {language.text("आगे", "Next")} }
                 }
             } else {
                 NumberCheck { label: answer_label, expected: answer, language,
@@ -193,7 +193,7 @@ fn Choice(
             } else {
                 p { role: "status", "{answer_label} {q.options[q.answer]}" }
             }
-            button { class: "quiet", onclick: move |_| on_done.call(true), {language.text("आगे", "Next")} }
+            button { disabled: crate::exercise_lock::locked(), class: "quiet", onclick: crate::exercise_lock::guard(move |_| on_done.call(true)), {language.text("आगे", "Next")} }
         }
         }
     }
@@ -230,7 +230,7 @@ fn PassageActivity(
     rsx! {
         if ready() {
             Choice { passage: String::new(), question, language, on_done }
-            button { class: "quiet", onclick: move |_| ready.set(false), "{repeat}" }
+            button { disabled: crate::exercise_lock::locked(), class: "quiet", onclick: crate::exercise_lock::guard(move |_| ready.set(false)), "{repeat}" }
         } else {
             if listen {
                 h2 { {language.text("ध्यान से सुनो", "Listen carefully")} }
@@ -288,7 +288,7 @@ fn TalkActivity(
                 p { class: "learning-text", role: "status", "{response}" }
             }
             button { class: "quiet", onclick: move |_| write.set(true), {language.text("लिखकर बताओ", "Write your answer")} }
-            button { class: "primary", onclick: move |_| on_done.call(()), {language.text("बात हो गई", "Done talking")} }
+            button { disabled: crate::exercise_lock::locked(), class: "primary", onclick: crate::exercise_lock::guard(move |_| on_done.call(())), {language.text("बात हो गई", "Done talking")} }
         }
     }
 }
@@ -449,6 +449,7 @@ pub fn Activity(
     #[props(default)] revision_source: Option<(Ink, usize)>,
     on_input: EventHandler<Input>,
 ) -> Element {
+    let on_input = crate::exercise_lock::input_handler(on_input);
     let on_done = move |missed| on_input.call(Input::Answer(missed));
     let on_ink = move |ink| on_input.call(Input::Draft(ink));
     let on_written = move |ink| on_input.call(Input::Submit(ink));
@@ -551,5 +552,6 @@ pub fn Activity(
                 } }
             }
         }
+        crate::exercise_lock::LockControl { language }
         {content} } }
 }

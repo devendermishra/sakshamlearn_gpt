@@ -30,6 +30,7 @@ pub fn RoughSheet(path: PathBuf, paper: Paper, language: Language, scale: PaperS
                 p { {language.text("पेन से कुछ भी लिखो या बनाओ।", "Use your pen to write or draw anywhere on the sheet.")} }
             }
             if saved.is_ok() {
+                crate::exercise_lock::LockControl { language }
                 InkPad { id: "rough-ink", model: String::new(), initial: draft(),
                     scale, paper, lines, full_sheet: true, language, on_ink: move |ink| save.call(ink) }
                 if failed() {
