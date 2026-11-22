@@ -10,6 +10,7 @@ let dirty = false;
 let frame = 0;
 let rendered = 0;
 let scale = 1;
+let paused = false;
 const listeners = new AbortController();
 function save() {
  if (!dirty) return;
@@ -29,14 +30,14 @@ function draw() {
  rendered = active === null ? 0 : strokes.at(-1).length;
 }
 function drawActive() {
- if(active===null)return;
+ if(active===null || paused || document.hidden)return;
  const stroke=strokes.at(-1);
  if(stroke.length<=rendered)return;
  paint(stroke,Math.max(0,rendered-1));
  rendered=stroke.length;
 }
 function scheduleDraw() {
- if(frame)return;
+ if(frame || paused || document.hidden)return;
  frame=requestAnimationFrame(()=>{frame=0;drawActive();});
 }
 function resizeCanvas() {
@@ -76,7 +77,7 @@ function finish() {
  cancelAnimationFrame(frame);frame=0;drawActive();active=null;save();
 }
 canvas.addEventListener('pointerdown',e=>{
- if(active!==null || (e.pointerType!=='pen' && !(config.allowMouse && e.pointerType==='mouse' && e.button===0))) return;
+ if(paused || document.hidden || active!==null || (e.pointerType!=='pen' && !(config.allowMouse && e.pointerType==='mouse' && e.button===0))) return;
  e.preventDefault();active=e.pointerId;canvas.setPointerCapture(active);strokes.push([point(e)]);rendered=0;dirty=true;drawActive();
 },{signal:listeners.signal});
 canvas.addEventListener('pointermove',e=>{
@@ -91,8 +92,13 @@ for(const event of ['pointerup','pointercancel','lostpointercapture'])canvas.add
 root.querySelector('[data-pencil-action=undo]').addEventListener('click',()=>{finish();strokes.pop();dirty=true;draw();save();},{signal:listeners.signal});
 root.querySelector('[data-pencil-action=clear]').addEventListener('click',()=>{finish();strokes=[];dirty=true;draw();save();},{signal:listeners.signal});
 window.addEventListener('blur',finish,{signal:listeners.signal});
-document.addEventListener('visibilitychange',finish,{signal:listeners.signal});
-function layout() { fitPage(); resizeCanvas(); }
+window.addEventListener('pagehide',finish,{signal:listeners.signal});
+// Flush before navigation disposes the Rust receiver.
+document.addEventListener('click',finish,{capture:true,signal:listeners.signal});
+window.addEventListener('saksham:pause',()=>{finish();paused=true;cancelAnimationFrame(frame);frame=0;},{signal:listeners.signal});
+window.addEventListener('saksham:resume',()=>{paused=false;layout();draw();},{signal:listeners.signal});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)finish();else {layout();draw();}},{signal:listeners.signal});
+function layout() { if(paused || document.hidden || !root.isConnected)return; fitPage(); resizeCanvas(); }
 const resize=new ResizeObserver(layout);resize.observe(canvas);
 if(config.fitPage) {
  resize.observe(root.closest('.basic-pattern-mode'));
@@ -102,7 +108,7 @@ if(config.fitPage) {
 image.addEventListener('load',layout,{signal:listeners.signal});layout();
 let endLifetime;
 const lifetime=new Promise(resolve=>{endLifetime=resolve;});
-const observer=new MutationObserver(()=>{if(!root.isConnected)endLifetime();});
+const observer=new MutationObserver(()=>{if(!root.isConnected){finish();endLifetime();}});
 observer.observe(document.body,{childList:true,subtree:true});
 if(!root.isConnected)endLifetime();
 // Keep Dioxus's message channel open until this workspace is unmounted.

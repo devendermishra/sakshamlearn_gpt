@@ -37,6 +37,23 @@ adb install -r target/Saksham-Android.apk
 
 The script builds an optimized ARM64 release APK by default (`-DebugBuild` selects a development APK), adds the Saksham launcher icon, and packages the result with Gradle's debug signing key. Keep the same signing key for in-place updates. You can also copy the APK to the tablet and open it there. Run `cargo run --locked` for a Windows desktop preview with WebView2.
 
+### Offline operation and battery checks
+
+Android retains Internet permission solely because Dioxus 0.7.10 uses a device-local `ws://127.0.0.1:<port>` connection to render UI changes. This uses no mobile or Wi-Fi destination; Android may still attribute loopback bytes to the app. Bundled content and files stay on the device. Android request/navigation guards and a document content security policy block external resources and connections, including links routed through Dioxus IPC. Missing local assets fail locally. WebView Safe Browsing and AppCompat's downloadable emoji font/profile startup components are disabled. The build stops if upstream Wry templates change or the final APK introduces unexpected permissions or background components.
+
+WebView timers pause in the background. The ABA calendar schedules one India-midnight update while visible and refreshes on resume. Pencil drawing batches work by animation frame, paints new segments, and saves completed/interrupted strokes plus dirty long-stroke checkpoints at most once per second. Handwriting flushes before pause and navigation; no background service, alarm, or wake lock is added.
+
+```powershell
+node --test tests/pencil.cjs tests/day-clock.cjs tests/trace.cjs
+./tests/patch-android.ps1
+node tests/offline-ui.cjs
+node tests/handwriting-lifecycle-ui.cjs
+```
+
+The browser checks require Edge and the bundled Playwright package. The offline test explicitly grants desktop Chromium's localhost permission to its synthetic app origin, then verifies the shipped CSP permits local UI traffic and blocks external requests before they reach the network.
+
+On the tablet, install as an update and verify progress remains intact. Complete reading, writing, Basic, ABA, worksheets, and Focus Mode checks in airplane mode and with connectivity enabled. Background during a pen stroke, resume, then restart and confirm the saved stroke. Test India-midnight rollover and returning after multiple days. Compare the old and new APK with the same brightness, content, and device conditions: ten minutes idle in foreground, ten minutes backgrounded/screen-off, and five minutes drawing. Collect per-UID network counters, CPU time, wake locks, and a system trace with Android Studio/ADB. Require no external app connections, no periodic app polling/drawing in the background, and no app-held wake locks. Device measurements are required before claiming a battery reduction; localhost counters alone do not establish Internet data usage.
+
 On the tablet, open **बड़ों के लिए**, set a parent PIN, and measure both edges of the 80 mm reference square with a physical ruler. Enter both measurements, adjust the guides, and check the Hindi and Mathematics samples with the ruler before saving. Repeat if the device display scaling changes. The default size before calibration is an estimate. Writing accepts active stylus input. Tap buttons with a finger or stylus. Progress and saved writing live in the app's local storage and will be erased if its app data is cleared.
 
 Trace models use round dots along a single centre path to keep Hindi loops clear, with blue arrows suggesting a tracing direction. Arrows describe local path direction, rather than a prescribed handwriting stroke sequence. The original filled glyph remains the coverage target for feedback. Run `node --test tests/trace.cjs tests/trace-guide.cjs` for path and feedback checks, and `node tests/trace-guide-ui.cjs` for headless Edge rendering checks and a preview in `target/trace-review/dotted-hindi.png`.

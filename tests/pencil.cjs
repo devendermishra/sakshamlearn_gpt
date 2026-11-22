@@ -6,7 +6,7 @@ const source = fs.readFileSync(require('node:path').join(__dirname,'../src/penci
 function workspace(initial=[], ratio=1) {
  const metrics={lines:0,resets:0};
  let now=0,frameId=0;const frames=new Map();
- const events=()=>({handlers:{},addEventListener(type,fn){this.handlers[type]=fn;},fire(type,event={}){this.handlers[type]?.({preventDefault(){},...event});}});
+ const events=()=>({handlers:{},addEventListener(type,fn,{signal}={}){this.handlers[type]=fn;signal?.addEventListener('abort',()=>delete this.handlers[type]);},fire(type,event={}){this.handlers[type]?.({preventDefault(){},...event});}});
  const context={stroke(){},fill(){},beginPath(){},moveTo(){},lineTo(){metrics.lines++;},arc(){},clearRect(){}};
  let bounds={left:0,top:0,width:1000,height:200};
  const canvas={...events(),getContext:()=>context,getBoundingClientRect:()=>bounds,setPointerCapture(){}};
@@ -24,7 +24,7 @@ function workspace(initial=[], ratio=1) {
   MutationObserver:class{constructor(fn){mutation=fn;}observe(){}disconnect(){}},
  });
  const pending=vm.runInContext('(async()=>{'+source+'})()',scope);
- return {canvas,undo,clear,messages,metrics, tick(ms){now+=ms;},frame(){for(const [id,fn] of [...frames]){frames.delete(id);fn();}},resize(w,h){bounds={...bounds,width:w,height:h};resize();},async close(){root.isConnected=false;mutation();await pending;}};
+ return {canvas,undo,clear,messages,metrics,window,document,frames, tick(ms){now+=ms;},frame(){for(const [id,fn] of [...frames]){frames.delete(id);fn();}},resize(w,h){bounds={...bounds,width:w,height:h};resize();},async close(){root.isConnected=false;mutation();await pending;}};
 }
 const pen=(id,x,y)=>({pointerType:'pen',pointerId:id,clientX:x,clientY:y});
 test('pencil rejects touch and mouse, and palm release does not interrupt the pen',async()=>{
@@ -83,4 +83,16 @@ test('canvas backing storage is bounded at high pixel ratios and zoom',async()=>
  const w=workspace([],3);w.resize(4000,4000);
  assert.ok(w.canvas.width*w.canvas.height<=4*1024*1024);
  await w.close();
+});
+
+test('native pause saves once, suspends drawing and resumes without listener growth',async()=>{
+ const w=workspace();w.canvas.fire('pointerdown',pen(1,100,50));
+ w.canvas.fire('pointermove',pen(1,200,100));
+ w.window.fire('saksham:pause');assert.equal(w.messages.length,1);assert.equal(w.frames.size,0);
+ w.canvas.fire('pointerdown',pen(2,300,100));w.canvas.fire('pointermove',pen(2,400,100));
+ assert.equal(w.messages.length,1);assert.equal(w.frames.size,0);
+ w.window.fire('saksham:pause');assert.equal(w.messages.length,1);
+ w.window.fire('saksham:resume');w.canvas.fire('pointerdown',pen(3,400,100));
+ w.document.fire('click');assert.equal(w.messages.length,2);
+ await w.close();assert.equal(Object.keys(w.window.handlers).length,0);
 });

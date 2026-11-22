@@ -45,12 +45,14 @@ let active = null;
 let latest = -1;
 let submitted = false;
 let frame = 0;
+let paused = false;
+let checkpoint = 0;
 let finish;
 const listeners = new AbortController();
 const lifetime = readonly ? null : new Promise(resolve => { finish = resolve; });
 
 function scheduleDraw(index) {
-    if (frame) return;
+    if (frame || paused || document.hidden) return;
     frame = requestAnimationFrame(() => {
         frame = 0;
         drawActive(index);
@@ -289,36 +291,49 @@ function bind(canvas, index) {
     if (readonly || (modelCell && (index === 0 || index === columns))) return;
     canvas.addEventListener("pointerdown", event => {
         const accepted = event.pointerType === "pen" || (allowMouse && event.pointerType === "mouse");
-        if (submitted || active || !accepted || event.button !== 0) return;
+        if (submitted || paused || document.hidden || active || !accepted || event.button !== 0) return;
         event.preventDefault();
         canvas.setPointerCapture(event.pointerId);
         ink[index].push([point(event, canvas)]);
         active = {id: event.pointerId, index, rendered: 0};
+        checkpoint = performance.now();
         scheduleDraw(index);
     }, {signal: listeners.signal});
     canvas.addEventListener("pointermove", event => {
         if (active?.id !== event.pointerId) return;
         const stroke = ink[index].at(-1);
+        const before = stroke.length;
         const events = event.getCoalescedEvents?.() ?? [];
         for (const sample of events.length ? events : [event]) {
             if (stroke.length < 4096) stroke.push(point(sample, canvas));
         }
+        if (stroke.length === before) return;
         scheduleDraw(index);
+        if (performance.now() - checkpoint >= 1000) {
+            dioxus.send({ink, done: false});
+            checkpoint = performance.now();
+        }
     }, {signal: listeners.signal});
     function end(event) {
         if (active?.id !== event.pointerId) return;
         if (event.type === "pointerup" && ink[index].at(-1).length < 4096) {
             ink[index].at(-1).push(point(event, canvas));
         }
-        drawActive(index);
-        active = null;
-        cancelAnimationFrame(frame);
-        frame = 0;
-        latest = index;
-        history.push(index);
-        update();
+        finishActive();
     }
     for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) canvas.addEventListener(type, end, {signal: listeners.signal});
+}
+
+function finishActive() {
+    if (!active) return;
+    const {index} = active;
+    if (!paused && !document.hidden && container.isConnected) drawActive(index);
+    active = null;
+    cancelAnimationFrame(frame);
+    frame = 0;
+    latest = index;
+    history.push(index);
+    update();
 }
 
 for (let i = 0; i < count; i++) {
@@ -338,6 +353,17 @@ function hasCompleteCopy(rowStart) {
 }
 
 if (!readonly) {
+    window.addEventListener('blur', finishActive, {signal: listeners.signal});
+    window.addEventListener('pagehide', finishActive, {signal: listeners.signal});
+    document.addEventListener('click', finishActive, {capture: true, signal: listeners.signal});
+    window.addEventListener('saksham:pause', () => {
+        finishActive(); paused = true;
+        cancelAnimationFrame(frame); frame = 0;
+    }, {signal: listeners.signal});
+    window.addEventListener('saksham:resume', () => { paused = false; }, {signal: listeners.signal});
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) finishActive();
+    }, {signal: listeners.signal});
     container.querySelector("[data-undo]").onclick = () => {
         if (active || submitted || !history.length) return;
         latest = history.pop();
@@ -389,7 +415,7 @@ if (lifetime) {
     // Dioxus keeps the message channel open while this promise is pending.
     // Observe removal instead of polling the DOM on every open writing pad.
     const observer = new MutationObserver(() => {
-        if (!container.isConnected) finish();
+        if (!container.isConnected) { finishActive(); finish(); }
     });
     observer.observe(document.body, {childList: true, subtree: true});
     if (!container.isConnected) finish();

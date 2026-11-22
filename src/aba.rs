@@ -20,12 +20,7 @@ pub fn AbaLearning(
     let mut selected = use_signal(|| practice::last_activity(&directory));
     let mut today = use_signal(india_date);
     use_future(move || async move {
-        let mut clock = document::eval(
-            "do {
-                await new Promise(resolve => setTimeout(resolve, 5000));
-                if (document.querySelector('[data-aba-learning]')) dioxus.send(true);
-            } while (document.querySelector('[data-aba-learning]'));",
-        );
+        let mut clock = document::eval(include_str!("day_clock.js"));
         while clock.recv::<bool>().await.is_ok() {
             let date = india_date();
             if *today.peek() != date {
