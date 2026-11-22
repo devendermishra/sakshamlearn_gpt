@@ -268,7 +268,7 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                 h1 { "अपना विषय चुनो" }
             }
             button { disabled: crate::exercise_lock::locked(), class: "primary daily-home", "data-subject": "daily-exercises",
-                onclick: crate::exercise_lock::guard(move |_| page.set(Page::DailyExercises)), "60-day exercises · 60 दिन के अभ्यास" }
+                onclick: crate::exercise_lock::guard(move |_| page.set(Page::DailyExercises)), "Daily exercise plans · रोज़ के अभ्यास" }
             div { class: "subject-cards home-subjects",
                 for item in snapshot.catalog.subjects() {
                     {

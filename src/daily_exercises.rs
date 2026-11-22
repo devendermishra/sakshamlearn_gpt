@@ -18,7 +18,7 @@ use std::{
     sync::LazyLock,
 };
 
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 const SUBJECTS: [&str; 4] = ["en", "hi", "math", "basic"];
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -58,7 +58,7 @@ impl Task {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 struct Day {
     number: usize,
     tasks: Vec<Task>,
@@ -66,6 +66,7 @@ struct Day {
 
 #[derive(Serialize)]
 struct Manifest {
+    id: PlanId,
     version: u32,
     days: Vec<Day>,
 }
@@ -200,6 +201,7 @@ fn build_manifest() -> Manifest {
         });
     }
     Manifest {
+        id: PlanId::Combined,
         version: VERSION,
         days,
     }
@@ -207,11 +209,105 @@ fn build_manifest() -> Manifest {
 
 static PLAN: LazyLock<Manifest> = LazyLock::new(build_manifest);
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum PlanId {
+    #[default]
+    Combined,
+    Class1,
+    Class2,
+}
+impl PlanId {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Combined => "Combined · 60 days",
+            Self::Class1 => "Class 1 · 30 days",
+            Self::Class2 => "Class 2 · 60 days",
+        }
+    }
+    fn manifest(self) -> &'static Manifest {
+        match self {
+            Self::Combined => &PLAN,
+            Self::Class1 => &CLASS1,
+            Self::Class2 => &CLASS2,
+        }
+    }
+}
+fn class_manifest(id: PlanId) -> Manifest {
+    if id == PlanId::Class1 {
+        return Manifest {
+            id,
+            version: VERSION,
+            days: PLAN.days[..30].to_vec(),
+        };
+    }
+    let mut days: Vec<_> = (1..=60)
+        .map(|number| Day {
+            number,
+            tasks: vec![],
+        })
+        .collect();
+    for subject in ["en", "hi", "math"] {
+        let units = lesson_units(subject, 2);
+        let mut remaining: usize = units.iter().map(Vec::len).sum();
+        let mut position = 0;
+        if units.len() < 60 {
+            for (i, unit) in units.iter().enumerate() {
+                days[i * 60 / units.len()]
+                    .tasks
+                    .extend(unit.iter().cloned());
+            }
+            continue;
+        }
+        for (day, slot) in days.iter_mut().enumerate() {
+            let days_left = 60 - day;
+            let target = remaining.div_ceil(days_left);
+            let mut count = 0;
+            while position < units.len()
+                && (count == 0 || count < target)
+                && units.len() - position >= days_left
+            {
+                count += units[position].len();
+                slot.tasks.extend(units[position].iter().cloned());
+                position += 1;
+            }
+            remaining -= count;
+        }
+        assert_eq!(position, units.len());
+    }
+    let basic: Vec<_> = PLAN.days[30..]
+        .iter()
+        .flat_map(|d| &d.tasks)
+        .filter(|t| t.subject == "basic")
+        .collect();
+    for (i, task) in basic.iter().enumerate() {
+        days[i * 60 / basic.len()].tasks.push((*task).clone());
+    }
+    Manifest {
+        id,
+        version: VERSION,
+        days,
+    }
+}
+static CLASS1: LazyLock<Manifest> = LazyLock::new(|| class_manifest(PlanId::Class1));
+static CLASS2: LazyLock<Manifest> = LazyLock::new(|| class_manifest(PlanId::Class2));
+
+#[derive(Clone, Serialize, Deserialize)]
+struct Location {
+    day: usize,
+    active: Option<String>,
+    paused: bool,
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 struct Progress {
     #[serde(skip)]
     render_revision: u64,
     version: u32,
+    #[serde(default)]
+    selected_plan: PlanId,
+    #[serde(default)]
+    locations: BTreeMap<PlanId, Location>,
     day: usize,
     active: Option<String>,
     paused: bool,
@@ -241,6 +337,8 @@ impl Default for Progress {
         Self {
             render_revision: 0,
             version: VERSION,
+            selected_plan: PlanId::Combined,
+            locations: BTreeMap::new(),
             day: 1,
             active: None,
             paused: false,
@@ -257,19 +355,46 @@ impl Default for Progress {
 }
 
 impl Progress {
+    fn plan(&self) -> &'static Manifest {
+        self.selected_plan.manifest()
+    }
+    fn switch_plan(&mut self, id: PlanId) {
+        if self.selected_plan == id {
+            return;
+        }
+        self.locations.insert(
+            self.selected_plan,
+            Location {
+                day: self.day,
+                active: self.active.clone(),
+                paused: self.paused,
+            },
+        );
+        let location = self.locations.get(&id).cloned().unwrap_or(Location {
+            day: 1,
+            active: None,
+            paused: false,
+        });
+        self.selected_plan = id;
+        self.day = location.day;
+        self.active = location.active;
+        self.paused = location.paused;
+        self.attempt += 1;
+    }
     fn day_complete(&self, day: &Day) -> bool {
         day.tasks.iter().all(|t| self.completed.contains(&t.id))
     }
     fn next_day(&self) -> usize {
-        PLAN.days
+        self.plan()
+            .days
             .iter()
             .find(|d| !self.day_complete(d))
-            .map_or(60, |d| d.number)
+            .map_or(self.plan().days.len(), |d| d.number)
     }
     fn advance(&mut self, task: &Task) {
         self.completed.insert(task.id.clone());
         self.retrying.remove(&task.id);
-        let tasks = &PLAN.days[self.day - 1].tasks;
+        let tasks = &self.plan().days[self.day - 1].tasks;
         let start = tasks.iter().position(|t| t.id == task.id).unwrap() + 1;
         // Stay within the selected subject; the day overview is always the return point.
         self.active = tasks[start..]
@@ -380,13 +505,19 @@ impl Progress {
 }
 
 fn load(path: &Path) -> Result<Progress, String> {
-    let progress = state::load_local::<Progress>(path).map_err(|e| e.to_string())?;
+    let mut progress = state::load_local::<Progress>(path).map_err(|e| e.to_string())?;
+    // V1 source IDs and work remain unchanged; navigation belonged to Combined.
+    if progress.version == 1 {
+        progress.version = VERSION;
+        progress.selected_plan = PlanId::Combined;
+        progress.locations.clear();
+    }
     if progress.version != VERSION {
         return Err(
             "This saved plan uses a different version. Its work has been preserved.".into(),
         );
     }
-    if !(1..=60).contains(&progress.day) {
+    if !(1..=progress.plan().days.len()).contains(&progress.day) {
         return Err("Saved day is invalid. Its work has been preserved.".into());
     }
     let ids: BTreeSet<_> = PLAN
@@ -399,7 +530,7 @@ fn load(path: &Path) -> Result<Progress, String> {
         .iter()
         .any(|id| !ids.contains(id.as_str()))
         || progress.active.as_ref().is_some_and(|id| {
-            !PLAN.days[progress.day - 1]
+            !progress.plan().days[progress.day - 1]
                 .tasks
                 .iter()
                 .any(|t| &t.id == id)
@@ -408,6 +539,18 @@ fn load(path: &Path) -> Result<Progress, String> {
         return Err(
             "Saved task references do not match this plan. Its work has been preserved.".into(),
         );
+    }
+    for (id, location) in &progress.locations {
+        if !(1..=id.manifest().days.len()).contains(&location.day)
+            || location.active.as_ref().is_some_and(|task| {
+                !id.manifest().days[location.day - 1]
+                    .tasks
+                    .iter()
+                    .any(|t| &t.id == task)
+            })
+        {
+            return Err("Saved plan location is invalid. Its work has been preserved.".into());
+        }
     }
     Ok(progress)
 }
@@ -438,22 +581,42 @@ pub fn DailyExercises(directory: PathBuf, math_language: Language, scale: PaperS
         }
     });
     if let Some(error) = error {
-        return rsx! { section { h1 { "60-day exercises · 60 दिन के अभ्यास" }
+        return rsx! { section { h1 { "Daily exercise plans · रोज़ के अभ्यास" }
         p { role: "alert", "Saved practice could not be opened. सहेजा अभ्यास नहीं खुला। {error}" } } };
     }
     let current = progress.read();
-    let day = &PLAN.days[current.day - 1];
-    let grade = if day.number <= 30 { 1 } else { 2 };
+    let plan = current.plan();
+    let day = &plan.days[current.day - 1];
+    let grade = match current.selected_plan {
+        PlanId::Combined => {
+            if day.number <= 30 {
+                1
+            } else {
+                2
+            }
+        }
+        PlanId::Class1 => 1,
+        PlanId::Class2 => 2,
+    };
     let active = current
         .active
         .as_ref()
         .and_then(|id| day.tasks.iter().find(|t| &t.id == id))
         .cloned();
-    let finished_days = PLAN.days.iter().filter(|d| current.day_complete(d)).count();
+    let finished_days = plan.days.iter().filter(|d| current.day_complete(d)).count();
     rsx! {
         section { class: "daily-pane", "data-plan-version": "{VERSION}",
-            h1 { "60-day exercises · 60 दिन के अभ्यास" }
-            p { "{finished_days} / 60 days complete · दिन पूरे" }
+            h1 { "Daily exercise plans · रोज़ के अभ्यास" }
+            nav { class: "actions", aria_label: "Choose a lesson plan",
+                for id in [PlanId::Combined, PlanId::Class1, PlanId::Class2] {
+                    button { disabled: crate::exercise_lock::locked(), aria_pressed: current.selected_plan == id,
+                        onclick: crate::exercise_lock::guard(move |_| { let mut n=progress(); n.switch_plan(id); persist.call(n); }),
+                        "{id.label()}"
+                    }
+                }
+            }
+            h2 { "{current.selected_plan.label()}" }
+            p { "{finished_days} / {plan.days.len()} days complete · दिन पूरे" }
             if failed() {
                 p { role: "alert", "Work could not be saved. काम सहेजा नहीं गया।" }
                 button { onclick: move |_| persist.call(progress()), "Retry save · फिर सहेजें" }
@@ -486,7 +649,7 @@ pub fn DailyExercises(directory: PathBuf, math_language: Language, scale: PaperS
                 details {
                     summary { "Choose a day · दिन चुनें" }
                     nav { class: "daily-days", aria_label: "Choose a day",
-                        for d in &PLAN.days {
+                        for d in &plan.days {
                             button { disabled: crate::exercise_lock::locked(), "data-day": "{d.number}", aria_pressed: current.day==d.number,
                                 onclick: crate::exercise_lock::guard(move |_| { let mut n=progress(); n.day=d.number; n.active=None; n.paused=false; persist.call(n); }),
                                 "{d.number}" if current.day_complete(d) { " ✓" }
@@ -502,9 +665,9 @@ pub fn DailyExercises(directory: PathBuf, math_language: Language, scale: PaperS
                         section { class: "daily-subject", "data-daily-subject": subject,
                             h2 { "{subject_name(subject)}" }
                             p { "{day.tasks.iter().filter(|t| t.subject==subject && current.completed.contains(&t.id)).count()} / {day.tasks.iter().filter(|t| t.subject==subject).count()} tasks · अभ्यास" }
-                            button { disabled: crate::exercise_lock::locked(), class: "primary", onclick: crate::exercise_lock::guard(move |_| {
+                            button { disabled: crate::exercise_lock::locked() || !day.tasks.iter().any(|t| t.subject==subject), class: "primary", onclick: crate::exercise_lock::guard(move |_| {
                                 let mut n=progress();
-                                let tasks=&PLAN.days[n.day-1].tasks;
+                                let tasks=&n.plan().days[n.day-1].tasks;
                                 n.active=tasks.iter().find(|t| t.subject==subject && !n.completed.contains(&t.id))
                                     .or_else(|| tasks.iter().find(|t| t.subject==subject)).map(|t| t.id.clone());
                                 persist.call(n);
@@ -527,7 +690,7 @@ pub fn DailyExercises(directory: PathBuf, math_language: Language, scale: PaperS
                 details { class: "daily-coverage",
                     summary { "Coverage inventory · लक्ष्य सूची" }
                     p { "English, हिंदी, Mathematics and Basic · All learning goals and activities · सभी लक्ष्य और अभ्यास" }
-                    for d in &PLAN.days {
+                    for d in &plan.days {
                         details {
                             summary { "Day {d.number} · {d.tasks.len()} tasks" }
                             for subject in SUBJECTS {
@@ -665,6 +828,170 @@ fn TaskRunner(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn class_plan_coverage_order_and_dependencies() {
+        for (id, grade, length) in [(PlanId::Class1, 1, 30), (PlanId::Class2, 2, 60)] {
+            let plan = id.manifest();
+            assert_eq!(plan.days.len(), length);
+            let expected: BTreeSet<_> = PLAN
+                .days
+                .iter()
+                .flat_map(|d| &d.tasks)
+                .filter(|t| t.grade == grade)
+                .map(|t| t.id.clone())
+                .collect();
+            let tasks: Vec<_> = plan.days.iter().flat_map(|d| &d.tasks).collect();
+            let actual: BTreeSet<_> = tasks.iter().map(|t| t.id.clone()).collect();
+            assert_eq!(actual, expected);
+            assert_eq!(tasks.len(), actual.len());
+            for subject in SUBJECTS {
+                let source: Vec<_> = PLAN
+                    .days
+                    .iter()
+                    .flat_map(|d| &d.tasks)
+                    .filter(|t| t.grade == grade && t.subject == subject)
+                    .map(|t| &t.id)
+                    .collect();
+                let scheduled: Vec<_> = tasks
+                    .iter()
+                    .filter(|t| t.subject == subject)
+                    .map(|t| &t.id)
+                    .collect();
+                assert_eq!(source, scheduled);
+            }
+            for (i, day) in plan.days.iter().enumerate() {
+                assert_eq!(day.number, i + 1);
+                assert!(!day.tasks.is_empty());
+                for task in &day.tasks {
+                    assert_eq!(task.grade, grade);
+                    if let Source::Lesson {
+                        topic: id,
+                        index,
+                        recall: false,
+                    } = &task.source
+                    {
+                        if matches!(
+                            topic(&task.subject, id, Language::English).exercises[*index].kind,
+                            Kind::Revise(..)
+                        ) {
+                            assert!(day.tasks.iter().any(|t| matches!(&t.source,
+                                Source::Lesson { topic: before, index: i, recall: false } if before == id && i+1 == *index)));
+                        }
+                    }
+                }
+            }
+            assert_eq!(
+                serde_json::to_string(plan).unwrap(),
+                serde_json::to_string(&class_manifest(id)).unwrap()
+            );
+        }
+        assert_eq!(
+            serde_json::to_string(&CLASS1.days).unwrap(),
+            serde_json::to_string(&PLAN.days[..30]).unwrap()
+        );
+        assert!(CLASS2
+            .days
+            .iter()
+            .any(|d| !d.tasks.iter().any(|t| t.subject == "basic")));
+    }
+
+    #[test]
+    fn shared_completion_locations_and_drafts_survive_restart() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("daily-exercises.json");
+        for (id, combined_day) in [(PlanId::Class1, 1), (PlanId::Class2, 31)] {
+            let mut p = Progress {
+                day: combined_day,
+                ..Progress::default()
+            };
+            let task = PLAN.days[combined_day - 1].tasks[0].clone();
+            p.active = Some(task.id.clone());
+            let strokes = vec![vec![[0.2, 0.3], [0.4, 0.5]]];
+            p.pencil.insert(task.id.clone(), strokes.clone());
+            p.advance(&task);
+            let combined_active = p.active.clone();
+            p.switch_plan(id);
+            assert!(p.completed.contains(&task.id));
+            assert_eq!(p.pencil[&task.id], strokes);
+            let other = p.plan().days[0]
+                .tasks
+                .iter()
+                .find(|t| t.id != task.id)
+                .unwrap()
+                .clone();
+            p.active = Some(other.id.clone());
+            p.paused = true;
+            state::save_local(&path, &p).unwrap();
+            p = load(&path).unwrap();
+            assert_eq!(p.selected_plan, id);
+            assert_eq!(p.active.as_ref(), Some(&other.id));
+            assert!(p.paused);
+            p.advance(&other);
+            p.switch_plan(PlanId::Combined);
+            assert_eq!(p.day, combined_day);
+            assert_eq!(p.active, combined_active);
+            assert!(p.completed.contains(&other.id));
+            assert_eq!(p.completed.len(), 2);
+            p.retry(&task);
+            p.advance(&task);
+            assert_eq!(p.completed.len(), 2);
+            p.switch_plan(PlanId::Class2);
+            let day = CLASS2
+                .days
+                .iter()
+                .find(|d| !d.tasks.iter().any(|t| t.subject == "basic"))
+                .unwrap();
+            p.day = day.number;
+            for t in &day.tasks {
+                p.advance(t);
+            }
+            assert!(p.day_complete(day));
+        }
+    }
+
+    #[test]
+    fn legacy_migration_and_invalid_bookmark_preservation() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("daily-exercises.json");
+        let task = &PLAN.days[35].tasks[0];
+        let mut p = Progress {
+            day: 36,
+            active: Some(task.id.clone()),
+            paused: true,
+            ..Progress::default()
+        };
+        p.completed.insert(task.id.clone());
+        p.worksheets
+            .insert(task.id.clone(), worksheets::Draft::default());
+        let mut legacy = serde_json::to_value(&p).unwrap();
+        legacy["version"] = 1.into();
+        legacy.as_object_mut().unwrap().remove("selected_plan");
+        legacy.as_object_mut().unwrap().remove("locations");
+        let bytes = serde_json::to_vec(&legacy).unwrap();
+        std::fs::write(&path, &bytes).unwrap();
+        let mut loaded = load(&path).unwrap();
+        assert_eq!(loaded.version, VERSION);
+        assert_eq!(loaded.selected_plan, PlanId::Combined);
+        assert_eq!(loaded.day, 36);
+        assert!(loaded.paused);
+        assert_eq!(loaded.active, p.active);
+        assert_eq!(loaded.completed, p.completed);
+        assert!(loaded.worksheets.contains_key(&task.id));
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        loaded.locations.insert(
+            PlanId::Class1,
+            Location {
+                day: 31,
+                active: None,
+                paused: false,
+            },
+        );
+        state::save_local(&path, &loaded).unwrap();
+        let invalid = std::fs::read(&path).unwrap();
+        assert!(load(&path).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), invalid);
+    }
 
     #[test]
     fn complete_subject_only_coverage_and_stable_ids() {

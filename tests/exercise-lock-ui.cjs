@@ -76,9 +76,10 @@ async function waitSave(file,predicate) {
   if(await button(page,'Show choices').count())await button(page,'Show choices').click();
   await page.locator('.answers button').first().click();await disabled(button(page,'Next'));
   await unlock(page);await page.locator('header > button').first().click();await page.locator('header > button').first().click();
-  await button(page,'60-day exercises · 60 दिन के अभ्यास').click();
+  await button(page,'Daily exercise plans · रोज़ के अभ्यास').click();
   await page.locator('[data-daily-subject="basic"]').getByRole('button',{name:'Start / Resume · शुरू / जारी',exact:true}).click();await lock(page);
   await disabled(button(page,'Back to day · दिन पर लौटें'));await disabled(button(page,'Mark complete · पूरा चिह्नित करें'));
+  for(const label of ['Combined · 60 days','Class 1 · 30 days','Class 2 · 60 days']) await disabled(button(page,label));
   await button(page,'Take a break · थोड़ा आराम').click();await button(page,'Continue · जारी रखें').click();await disabled(button(page,'Mark complete · पूरा चिह्नित करें'));
   await unlock(page);await button(page,'Back to day · दिन पर लौटें').click();
   await page.locator('[data-daily-subject="math"]').getByRole('button',{name:'Start / Resume · शुरू / जारी',exact:true}).click();await lock(page);

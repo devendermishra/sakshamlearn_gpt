@@ -188,6 +188,7 @@ h2 { font-size: 1.4rem; }
     pointer-events: none;
 }
 .ink-english .ink-grid {
+    row-gap: var(--english-gap);
     --cap-line: calc(var(--height) / 8);
     --mid-line: calc(var(--height) * 3 / 8);
     --base-line: calc(var(--height) * 5 / 8);
@@ -597,3 +598,7 @@ main:has(.basic-pattern-mode) { max-width:none; padding:.75rem 1rem 1rem; }
 [data-ink-tool][aria-pressed=true], [data-pencil-action=pen][aria-pressed=true], [data-pencil-action=eraser][aria-pressed=true] { outline: 3px solid currentColor; outline-offset: 1px; }
 
 .exercise-locked-header { position: sticky; top: 0; z-index: 20; }
+
+.ink-english.ink-sentence .ink-grid canvas {
+    height: calc(var(--height) * var(--sentence-lines) + (var(--sentence-lines) - 1) * var(--english-gap));
+}

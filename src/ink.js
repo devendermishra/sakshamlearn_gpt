@@ -12,6 +12,8 @@ if (model && !square && !plain) {
 
 const traceColumns = englishPaper ? 3 : 6;
 const rowHeight = 216;
+const englishRowGap = englishPaper ? rowHeight * 1.6 / 16 : 0;
+const rowPitch = rowHeight + englishRowGap;
 const wideModelWidth = englishPaper ? 1958 : 1305;
 const glyphPadding = 28;
 const englishFont = '144px "Patrick Hand", Arial, sans-serif';
@@ -38,7 +40,31 @@ const count = tableTrace ? columns * 10 : fullSheet ? 1 : noteColumns + columns 
 const modelCell = model && !symbolWidth && !lineTrace && !sentence.length;
 const grid = container.querySelector(".ink-grid");
 const notes = container.querySelector(".regroup-grid");
-const ink = Array.from({length: count}, (_, i) => initial[i] ?? []);
+// Persist legacy paper coordinates so existing drafts and dated samples retain
+// their alignment, without rewriting every storage format that embeds Ink.
+const paperRows = englishPaper ? (fullSheet ? lines : sentence.length || 1) : 1;
+const oldPitch = fullSheet ? 20 : 16;
+const newPitch = 17.6;
+const oldExtent = 16 * paperRows + (fullSheet ? 4 * (paperRows - 1) : 0);
+const newExtent = 16 * paperRows + 1.6 * (paperRows - 1);
+function paperY(y, fromPitch, toPitch, fromExtent, toExtent) {
+    if (!englishPaper || paperRows < 2) return y;
+    const mm = y * fromExtent;
+    const row = Math.max(0, Math.min(paperRows - 1, Math.floor((mm - 2) / fromPitch)));
+    const local = mm - (2 + row * fromPitch);
+    // Preserve the 12 mm between the four rules; scale only the blank gap.
+    const mapped = local <= 12 || row === paperRows - 1 ? local
+        : 12 + (local - 12) * (toPitch - 12) / (fromPitch - 12);
+    return (2 + row * toPitch + mapped) / toExtent;
+}
+function mapInk(value, reverse = false) {
+    if (!englishPaper || paperRows < 2) return value;
+    return value.map(cell => cell.map(stroke => stroke.map(([x,y]) => [x,
+        reverse ? paperY(y, newPitch, oldPitch, newExtent, oldExtent)
+            : paperY(y, oldPitch, newPitch, oldExtent, newExtent)])));
+}
+const ink = mapInk(Array.from({length: count}, (_, i) => initial[i] ?? []));
+const savedInk = () => mapInk(ink, true);
 const cells = [];
 const message = container.querySelector("[role=status]");
 let active = null;
@@ -139,7 +165,7 @@ function paper(index) {
     canvas.width = plain ? 1200 : englishPaper ? (model ? 540 : 1620) : square ? 216 : model ? 240 : 720;
     canvas.height = plain ? 600 : rowHeight;
     if (lineTrace || sentence.length) canvas.width = wideModelWidth;
-    if (sentence.length) canvas.height = rowHeight * sentence.length;
+    if (sentence.length) canvas.height = rowHeight * sentence.length + englishRowGap * (sentence.length - 1);
     if (fullSheet) {
         const {width, height} = grid.getBoundingClientRect();
         canvas.width = Math.max(1, Math.min(1800, Math.round(width * 2)));
@@ -296,7 +322,7 @@ function template(canvas, index, resolution = 1) {
             }
             for (const [index, row] of sentence.entries()) {
                 ctx.save();
-                ctx.translate(0, index * rowHeight);
+                ctx.translate(0, index * rowPitch);
                 glyph(ctx, row, "model", canvas.width);
                 ctx.restore();
             }
@@ -318,7 +344,7 @@ function feedback() {
 }
 
 function update() {
-    dioxus.send({ink, done: false});
+    dioxus.send({ink: savedInk(), done: false});
     message.textContent = "";
     feedback();
 }
@@ -352,7 +378,7 @@ function bind(canvas, index) {
             event.preventDefault();
             const samples=event.getCoalescedEvents?.()??[];
             for(const sample of samples.length?samples:[event])eraseAt(index,eraserPoint(sample,canvas));
-            if(performance.now()-checkpoint>=1000){dioxus.send({ink,done:false});checkpoint=performance.now();}
+            if(performance.now()-checkpoint>=1000){dioxus.send({ink: savedInk(),done:false});checkpoint=performance.now();}
             return;
         }
         const stroke = ink[index].at(-1);
@@ -364,7 +390,7 @@ function bind(canvas, index) {
         if (stroke.length === before) return;
         scheduleDraw(index);
         if (performance.now() - checkpoint >= 1000) {
-            dioxus.send({ink, done: false});
+            dioxus.send({ink: savedInk(), done: false});
             checkpoint = performance.now();
         }
     }, {signal: listeners.signal});
@@ -472,7 +498,7 @@ if (!readonly) {
             return;
         }
         submitted = true;
-        dioxus.send({ink, done: true});
+        dioxus.send({ink: savedInk(), done: true});
         finish();
     };
 }

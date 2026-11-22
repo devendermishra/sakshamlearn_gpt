@@ -11,9 +11,10 @@ const CSS_PIXELS_PER_MM: f64 = 96.0 / 25.4;
 const DIGIT_CELL_MM: f64 = 11.0;
 const WORK_GRID_COLUMNS: usize = 10;
 const HINDI_BAND_MM: f64 = 8.0;
-// Four rules at 4 mm intervals, with 4 mm between writing rows in the workbook.
+// Four rules at 4 mm intervals. Existing 2 mm margins plus 1.6 mm extra
+// separate the last rule of one row from the first of the next by 5.6 mm.
 const ENGLISH_ROW_MM: f64 = 16.0;
-const ENGLISH_NOTEBOOK_GAP_MM: f64 = 4.0;
+const ENGLISH_NOTEBOOK_GAP_MM: f64 = 1.6;
 
 #[derive(Clone, Copy, PartialEq)]
 pub struct PaperScale {
@@ -164,7 +165,7 @@ pub fn InkPad(
     } else {
         class.to_owned()
     };
-    let english_gap = if full_sheet && english_paper {
+    let english_gap = if english_paper {
         ENGLISH_NOTEBOOK_GAP_MM * scale.vertical
     } else {
         0.0

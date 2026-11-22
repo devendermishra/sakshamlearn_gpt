@@ -27,7 +27,7 @@ async function run(profile, check) {
   const context=browser.contexts()[0];
   const page=context.pages()[0]||await context.waitForEvent('page');
   page.setDefaultTimeout(15000);
-  await button(page,'60-day exercises · 60 दिन के अभ्यास').waitFor();
+  await button(page,'Daily exercise plans · रोज़ के अभ्यास').waitFor();
   // Block internet access while retaining the desktop shell's loopback IPC.
   await context.route('**/*', route=>{
    const url=new URL(route.request().url());
@@ -55,8 +55,8 @@ async function waitSave(file,predicate) {
  throw Error('Expected saved daily work: '+file);
 }
 const open=async page=>{
- await button(page,'60-day exercises · 60 दिन के अभ्यास').click();
- await page.getByRole('heading',{name:'60-day exercises · 60 दिन के अभ्यास',exact:true}).waitFor();
+ await button(page,'Daily exercise plans · रोज़ के अभ्यास').click();
+ await page.getByRole('heading',{name:'Daily exercise plans · रोज़ के अभ्यास',exact:true}).waitFor();
 };
 (async()=>{
  await fs.mkdir(output,{recursive:true});
@@ -69,6 +69,14 @@ const open=async page=>{
  await run(profile,async page=>{
   await open(page);
   assert.equal(await page.locator('[data-daily-subject]').count(),4);
+  await button(page,'Class 2 · 60 days').click();
+  await page.getByText('Choose a day · दिन चुनें',{exact:true}).click();
+  assert.equal(await page.locator('[data-day]').count(),60);
+  await page.locator('[data-day="3"]').click();
+  assert.equal(await page.locator('[data-daily-subject="basic"]').getByRole('button',{name:'Start / Resume · शुरू / जारी',exact:true}).isDisabled(),true);
+  await button(page,'Combined · 60 days').click();
+  // Close the retained picker so the existing navigation check can reopen it.
+  if(await page.locator('[data-day="1"]').isVisible()) await page.getByText('Choose a day · दिन चुनें',{exact:true}).click();
   assert.equal(await page.locator('.daily-pane').getByRole('button',{name:/ABA|therapy/i}).count(),0);
   await page.getByText('Choose a day · दिन चुनें',{exact:true}).click();
   assert.equal(await page.locator('[data-day]').count(),60);
@@ -100,8 +108,18 @@ const open=async page=>{
   await page.waitForFunction(()=>document.querySelector('#pencil-workspace canvas'));
   const saved=await waitSave(file,p=>!p.paused);
   assert.equal(saved.active,active);assert.ok(saved.pencil[active].length);
+  await button(page,'Class 1 · 30 days').click();
+  await page.getByText('Choose a day · दिन चुनें',{exact:true}).click();
+  assert.equal(await page.locator('[data-day]').count(),30);
+  await button(page,'Combined · 60 days').click();
+  await page.waitForFunction(()=>document.querySelector('#pencil-workspace canvas'));
+  await waitSave(file,p=>p.selected_plan==='combined'&&p.active===active);
   await button(page,'Mark complete · पूरा चिह्नित करें').click();
   await waitSave(file,p=>p.completed.includes(active));
+  await button(page,'Class 1 · 30 days').click();
+  await page.locator('[data-daily-subject="basic"] summary').click();
+  assert.ok((await page.locator('[data-task-id="'+active+'"]').innerText()).includes('✓'));
+  await button(page,'Combined · 60 days').click();
   // Return to the overview even when a second Basic activity follows.
   const back=button(page,'Back to day · दिन पर लौटें');if(await back.count()) await back.click();
   await button(page,'Continue next unfinished day · अगला अधूरा दिन').click();
@@ -114,7 +132,11 @@ const open=async page=>{
   await english.locator('summary').click();
   const recall=english.locator('[data-task-id^="recall/en/"]').first();
   lessonChoice=await recall.getAttribute('data-task-id');
-  await recall.click();
+  await button(page,'Class 1 · 30 days').click();
+  if(!await page.locator('[data-day="3"]').isVisible()) await page.getByText('Choose a day · दिन चुनें',{exact:true}).click();
+  await page.locator('[data-day="3"]').click();
+  if(!await page.locator('[data-task-id="'+lessonChoice+'"]').isVisible()) await page.locator('[data-daily-subject="en"] summary').click();
+  await page.locator('[data-task-id="'+lessonChoice+'"]').click();
   await button(page,'Show choices').click();
   await page.locator('.answers button').first().click();
   await waitSave(file,p=>p.answers[lessonChoice]?.selected===0);
@@ -127,6 +149,11 @@ const open=async page=>{
   await button(page,'Next').waitFor();
   await button(page,'Next').click();
   await waitSave(file,p=>p.completed.includes(lessonChoice));
+  await button(page,'Combined · 60 days').click();
+  const overview=button(page,'Back to day · दिन पर लौटें');if(await overview.count()) await overview.click();
+  const enSummary=page.locator('[data-daily-subject="en"] summary');
+  if(!await page.locator('[data-task-id="'+lessonChoice+'"]').isVisible()) await enSummary.click();
+  assert.ok((await page.locator('[data-task-id="'+lessonChoice+'"]').innerText()).includes('✓'));
   const back=button(page,'Back to day · दिन पर लौटें');if(await back.count()) await back.click();
   await page.getByText('Choose a day · दिन चुनें',{exact:true}).click();
   for(let day=60;day>=31&&!worksheet;day--) {

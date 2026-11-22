@@ -10,7 +10,7 @@ Open **Writing practice plan** and do one card a day. Class 1 moves from letter 
 
 The three picture activities use illustrations from NCERT’s *Mridang*, Class 1 pages 47 and 84 and Class 2 page 8. The app includes these pictures for offline use.
 
-Use **Sound out words** for short-a word families such as `-an` and `-ap`. Use **Read and write common words** to read words in short sentences and practise them by tracing, copying or writing from dictation. The calibrated English guides are 4 mm apart, as in the workbook.
+Use **Sound out words** for short-a word families such as `-an` and `-ap`. Use **Read and write common words** to read words in short sentences and practise them by tracing, copying or writing from dictation. The calibrated English guides are 4 mm apart, with a 5.6 mm gap between successive four-line writing groups throughout English practice. Saved handwriting keeps its guide alignment.
 
 In Class 1, **Write small letters** covers lowercase a–z in pairs. In both classes, **Write practice words** gives the `-an` and `-ap` families their own tracing and handwriting cards.
 
@@ -122,15 +122,17 @@ node tests/practice-ui.cjs
 
 The UI check uses the bundled Playwright package beside the Node runtime and a fresh profile under `target`; it verifies pencil controls, restart recovery, checklist links, ABA tasks, and offline cards. Screenshots are saved under `target/practice-review`. On the Android tablet, additionally verify active-stylus input, palm rejection, touch scrolling in Move page mode, landscape layout, and airplane-mode restart recovery.
 
-## 60-day exercises
+## Daily exercise plans
 
-Open **60-day exercises · 60 दिन के अभ्यास** from the learner home. This separate pane contains English, Hindi, Mathematics and Basic every day. Days 1–30 cover Class 1 and days 31–60 cover Class 2. Basic covers all 68 pencil-control bands and paths in source order. The plan includes every bundled academic lesson exercise, recall question and worksheet task; ABA and therapy activities are excluded. Academic listening and conversation remain included.
+Open **Daily exercise plans · रोज़ के अभ्यास** from the learner home. The combined plan contains English, Hindi, Mathematics and Basic every day. Its days 1–30 cover Class 1 and days 31–60 cover Class 2. Basic covers all 68 pencil-control bands and paths in source order. The plan includes every bundled academic lesson exercise, recall question and worksheet task; ABA and therapy activities are excluded. Academic listening and conversation remain included.
 
-All 60 days are open. Choose **Continue next unfinished day**, select a subject, and complete its tasks in the pane. Daily counts reflect the full content, so workloads vary. Work, answers, handwriting, breaks and resume location are saved offline in `learner-work/daily-exercises.json`, independently of normal lesson and worksheet progress. Completed tasks can be reviewed or retried without increasing completion counts. A day is complete when all four subjects are complete.
+Choose **Combined · 60 days**, **Class 1 · 30 days**, or **Class 2 · 60 days**. The Class 1 plan reuses combined days 1–30; the Class 2 plan spreads its academic exercises across 60 days. Each class retains its existing Basic exercises; some Class 2 days have no Basic task. Completion, answers and handwriting are shared across daily plans by exercise ID, while each plan remembers its own day, open exercise and break. Completing an exercise in one plan counts wherever it appears. Ordinary subject practice remains independent. Existing daily saves are upgraded with their combined-plan work and location intact.
 
-The versioned manifest and coverage inventory are built deterministically from bundled source IDs in `src/daily_exercises.rs`. **Coverage inventory** in the pane lists the day, subject, goal, source and task count for every scheduled group. Dependent composition/revision steps stay together. A later plan version requires an explicit migration; incompatible or unreadable saves are reported and left untouched.
+All days are open. Choose **Continue next unfinished day**, select a subject, and complete its tasks in the pane. Daily counts reflect the full content, so workloads vary. Work, answers, handwriting, breaks and resume location are saved offline in `learner-work/daily-exercises.json`, independently of normal lesson and worksheet progress. Completed tasks can be reviewed or retried without increasing completion counts. A day is complete when all its scheduled tasks are complete; no Basic work is required on days without a Basic task.
 
-Run `cargo test --locked`, `cargo build --locked`, and `node tests/daily-exercises-ui.cjs` to verify coverage, persistence and the desktop pane. On Android, additionally verify active stylus input, palm rejection, airplane-mode restart and landscape layout using the existing device acceptance checks.
+The versioned manifest and coverage inventory are built deterministically from bundled source IDs in `src/daily_exercises.rs`. **Coverage inventory** in the pane lists the day, subject, goal, source and task count for every scheduled group. Dependent composition/revision steps stay together. Version 1 daily saves migrate automatically to the shared-plan format; other incompatible versions require an explicit migration; incompatible or unreadable saves are reported and left untouched.
+
+Run `cargo test --locked`, `cargo build --locked`, `node tests/daily-exercises-ui.cjs`, `node --test tests/english-spacing.cjs`, and `node tests/english-spacing-ui.cjs` to verify coverage, persistence, calibrated paper spacing and the desktop pane. On Android, additionally verify active stylus input, palm rejection, airplane-mode restart and landscape layout using the existing device acceptance checks.
 
 ## Optimized Android builds
 
