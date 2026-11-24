@@ -11,9 +11,11 @@ const {chromium} = require(path.join(process.env.USERPROFILE, '.cache/codex-runt
         const page = await browser.newPage({viewport: {width: 1100, height: 1000}, deviceScaleFactor: 2});
         const font = await fs.readFile(path.join(root, 'assets', 'PatrickHand-Regular.ttf'), 'base64');
         const hindiFont = await fs.readFile(path.join(root, 'assets', 'Kalam-Regular.ttf'), 'base64');
+        const hindiBaFont = await fs.readFile(path.join(root, 'assets', 'NotoSansDevanagari-Regular.ttf'), 'base64');
         await page.setContent(`<style>
             @font-face { font-family: 'Patrick Hand'; src: url(data:font/ttf;base64,${font}); }
             @font-face { font-family: 'Kalam'; src: url(data:font/ttf;base64,${hindiFont}); }
+            @font-face { font-family: 'Noto Sans Devanagari'; src: url(data:font/ttf;base64,${hindiBaFont}); }
             body { font: 20px Arial; color: #223c37; padding: 24px; }
             section { margin-bottom: 24px; } h2 { margin-bottom: 8px; }
             .ink-grid { display: grid; grid-template-columns: repeat(6, 114px); width: fit-content; }
@@ -24,7 +26,7 @@ const {chromium} = require(path.join(process.env.USERPROFILE, '.cache/codex-runt
             .ink-sentence canvas { width: 684px; }
         </style><h1>Dotted tracing · direction arrows</h1>
         <p>Follow the dots in the direction of the blue arrows.</p>`);
-        for (const [index, model] of ['झ', 'द', 'ढ', 'ध', 'भ', 'म', 'श', 'दा', 'दि', 'झु', 'क', 'फ', 'अ', 'क्ष', '8', 'g', 'पानी', 'We play at home.'].entries()) {
+        for (const [index, model] of ['ब', 'बा', 'बि', 'बी', 'बु', 'बू', 'बृ', 'बे', 'बै', 'बो', 'बौ', 'बं', 'बच्चा', 'बस्ता', 'किताब', 'झ', 'द', 'ढ', 'ध', 'भ', 'म', 'श', 'दा', 'दि', 'झु', 'क', 'फ', 'अ', 'क्ष', '8', 'g', 'पानी', 'We play at home.'].entries()) {
             const id = 'sample-' + index;
             await page.evaluate(({id, model}) => {
                 const section = document.createElement('section');

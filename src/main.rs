@@ -36,7 +36,8 @@ fn handwriting_font() -> &'static str {
         use base64::{engine::general_purpose::STANDARD, Engine as _};
         let bytes = include_bytes!("../assets/PatrickHand-Regular.ttf");
         let hindi = include_bytes!("../assets/Kalam-Regular.ttf");
-        format!("/* {} */\n@font-face {{ font-family: 'Patrick Hand'; src: url(data:font/ttf;base64,{}) format('truetype'); font-display: swap; }}\n@font-face {{ font-family: 'Kalam'; src: url(data:font/ttf;base64,{}) format('truetype'); font-display: swap; }}", include_str!("../assets/Kalam-OFL.txt"), STANDARD.encode(bytes), STANDARD.encode(hindi))
+        let hindi_ba = include_bytes!("../assets/NotoSansDevanagari-Regular.ttf");
+        format!("/* {} */\n@font-face {{ font-family: 'Patrick Hand'; src: url(data:font/ttf;base64,{}) format('truetype'); font-display: swap; }}\n@font-face {{ font-family: 'Kalam'; src: url(data:font/ttf;base64,{}) format('truetype'); font-display: swap; }}", include_str!("../assets/Kalam-OFL.txt"), STANDARD.encode(bytes), STANDARD.encode(hindi)) + &format!("\n/* {} */\n@font-face {{ font-family: 'Noto Sans Devanagari'; src: url(data:font/ttf;base64,{}) format('truetype'); font-display: swap; }}", include_str!("../assets/NotoSansDevanagari-OFL.txt"), STANDARD.encode(hindi_ba))
     });
     &FONT
 }

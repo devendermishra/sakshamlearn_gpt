@@ -3,7 +3,8 @@ const container = document.getElementById(id);
 if (!container) return;
 if (model && !square && !plain) {
     try {
-        await document.fonts.load(englishPaper ? '144px "Patrick Hand"' : '91px "Kalam"', model);
+        await document.fonts.load(englishPaper ? '144px "Patrick Hand"'
+            : model.includes('ब') ? '91px "Noto Sans Devanagari"' : '91px "Kalam"', model);
     } catch (error) {
         console.warn("Could not load the handwriting font", error);
     }
@@ -19,7 +20,11 @@ const glyphPadding = 28;
 const englishFont = '144px "Patrick Hand", Arial, sans-serif';
 // A bundled handwriting model preserves the small loops in झ and द; device
 // text fonts can fill those knots completely before centre-line extraction.
-const hindiFont = '"Kalam", "Noto Sans Devanagari", Mangal, sans-serif';
+// Use a standard upright ब and let one font shape its whole practice text,
+// including matras and conjuncts. Keep Kalam for the other handwriting models.
+const hindiFont = model.includes("ब")
+    ? '"Noto Sans Devanagari", Mangal, sans-serif'
+    : '"Kalam", "Noto Sans Devanagari", Mangal, sans-serif';
 const text = (hindi, translation) => english ? translation : hindi;
 // Existing ink in a practice grid uses coordinates local to its original cells.
 const hasGridInk = initial.length === 2 * traceColumns && initial.some(cell => cell.length);
