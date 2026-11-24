@@ -4,6 +4,7 @@ use crate::{
 };
 
 pub enum Input {
+    Assessed(Box<Input>, crate::assessment::Context),
     Answer(bool),
     Draft(Ink),
     Helper(HelperDraft),
@@ -12,8 +13,12 @@ pub enum Input {
 }
 
 impl Input {
+    pub fn unpack(self) -> (Self, Option<crate::assessment::Context>) {
+        match self { Self::Assessed(input, context) => (*input, Some(context)), other => (other,None) }
+    }
+    pub fn raw(&self) -> &Self { match self { Self::Assessed(input, _) => input.raw(), other => other } }
     pub fn is_draft(&self) -> bool {
-        matches!(self, Self::Draft(_) | Self::Helper(_))
+        matches!(self.raw(), Self::Draft(_) | Self::Helper(_))
     }
 }
 #[derive(Debug, PartialEq, Eq)]
@@ -65,11 +70,15 @@ impl Step<'_> {
         if !matches!(self.exercise(), Some(Kind::Trace { .. })) {
             return None;
         }
-        match input {
+        let (input, context) = input.unpack();
+        let evidence = crate::assessment::attempt(self.subject,self.topic,self.index,false,&input,context.unwrap_or_default(),"direct-tracing",false,state::day());
+        let result = match input {
             Input::Draft(ink) => self.save_writing(state, ink, false, None, date),
             Input::Submit(ink) => self.save_writing(state, ink, true, None, date),
             _ => None,
-        }
+        };
+        if result == Some(true) { if let Some(a) = evidence { state.evidence.record(a); } }
+        result
     }
 
     fn save_writing(&self, state: &mut State, ink: Ink, submitted: bool, correct: Option<bool>, date: &str) -> Option<bool> {
@@ -137,6 +146,7 @@ impl Step<'_> {
         today: u64,
         date: &str,
     ) -> Option<Outcome> {
+        let (input, context) = input.unpack();
         let id = self.session_key();
         let current = state.sessions.get_mut(&id)?;
         if current.step != self.index {
@@ -156,12 +166,22 @@ impl Step<'_> {
             return None;
         }
         let generated = current.generated.is_some();
-        let missed = current.missed
+        let previous_missed = current.missed;
+        let recall = self.review || self.exercise().is_none();
+        let recall_index = if self.review {
+            self.recall(state).get(self.index).and_then(|q|self.topic.recall.iter().position(|candidate|candidate==q)).unwrap_or(0)
+        } else { 0 };
+        let mut context = context.unwrap_or_default();
+        if state.sessions.get(&id).is_some_and(|s|s.helper.as_ref().is_some_and(|h|h!=&HelperDraft::default())) { context.helper_used = true; }
+        let assisted = !matches!(context.assistance,crate::assessment::Assistance::Independent|crate::assessment::Assistance::Unreported) || context.hint_used || context.helper_used || context.solution_exposed || context.model_visible;
+        let evidence = (!generated).then(||crate::assessment::attempt(self.subject,self.topic,if recall {recall_index}else{self.index},recall,&input,context,"lesson",self.review,today)).flatten();
+        let missed = previous_missed || assisted
             || matches!(
                 input,
                 Input::Answer(true) | Input::SubmitSolution { correct: false, .. }
             );
         let writing_input = match input {
+            Input::Assessed(..) => unreachable!("unpacked input"),
             Input::Answer(_) | Input::Helper(_) => None,
             Input::Draft(ink) => Some((ink, false, None)),
             Input::Submit(ink) => Some((ink, true, None)),
@@ -172,6 +192,7 @@ impl Step<'_> {
                 return Some(Outcome::Continue);
             }
         }
+        if let Some(a) = evidence { state.evidence.record(a); }
         let more = if self.review {
             self.index + 1 < self.recall(state).len()
         } else {

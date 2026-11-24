@@ -466,8 +466,8 @@ pub fn review_questions(topic: &Topic, interval: Option<usize>) -> &[Question] {
         return &topic.recall[..1];
     };
     let remaining = topic.recall.len() - 1;
-    let start = (remaining * interval.min(2)).div_ceil(3);
-    let end = (remaining * (interval.min(2) + 1)).div_ceil(3);
+    let start = (remaining * (interval % 3)).div_ceil(3);
+    let end = (remaining * ((interval % 3) + 1)).div_ceil(3);
     if start < end {
         &topic.recall[1 + start..1 + end]
     } else {

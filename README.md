@@ -139,3 +139,29 @@ Run `cargo test --locked`, `cargo build --locked`, `node tests/daily-exercises-u
 `./build-android.ps1` builds the optimized ARM64 release Rust library and packages a non-debuggable, minified APK. It uses the existing Gradle debug signing key for tablet update compatibility; use a dedicated release key for public distribution. `./build-android.ps1 -DebugBuild` retains the development build. Add `-Offline` once the toolchain dependencies have been cached. Release Rust uses size optimization, thin LTO, one codegen unit and stripped symbols.
 
 Drawing runs locally in the WebView canvas; Rust owns learning logic and ordered background persistence. Progress retains its existing JSON format. Pending saves coalesce by file, use buffered atomic writes, and finish before a file is reopened. Pencil input renders new segments once per animation frame and checkpoints long strokes every two seconds, then saves immediately at stroke completion, blur and visibility changes. Parent handwriting history is preserved and paginated.
+
+
+## Adaptive Learning V1
+
+**Today's learning** offers a separate, resumable session for the selected Class 1 or 2 across English, Hindi, and mathematics. The existing 60-day plans and individual lessons remain available. Parents can set an estimated 5–30 minute budget (15 by default) behind the parent PIN. Activity durations are planning estimates, not measured ability or a promised session length.
+
+The planner selects overdue competency checks, prerequisite practice, then at most two new units. It reserves up to 20% of the budget for new work that fits, orders reviews by oldest due date, rotates new-work subject priority by India learning date, and keeps composition/revision chains together. Recommendations never lock lessons. Unscored skills can be introduced without claiming mastery. An unfinished queue stays available after restarting; a new queue starts only when requested.
+
+`assessment` maps bundled exercises and recall questions to stable source-based competency IDs. Formation, writing, conversation, recognition, and arithmetic are distinct skills. Bilingual math uses the same IDs; topic revision and exercise IDs remain in attempt provenance. The explicit arithmetic prerequisite graph covers addition before carrying, subtraction before borrowing, and multiplication before division; other skills have no inferred prerequisite. Custom authored activities, worksheets, pencil practice, ABA, and generated math rounds are outside V1 estimates.
+
+The main learner state contains a versioned, deduplicated attempt journal: submission ID, source, exercise and competency, UTC timestamp in milliseconds and India learning day, optional correctness/accuracy, modality, assistance, visible models, errors, hints, helper/solution use, and optional duration. Duration is currently unmeasured. Answers entered after writing assess the entered arithmetic response, not handwriting. Writing, tracing coverage, and conversation are unscored. First-response errors remain errors after correction; app help and optionally reported adult help exclude independent success. “Unreported” external help is distinct from a parent's explicit “Independent” report. Answer and assistance drafts survive restarts.
+
+The parent **Learning evidence** dashboard displays rule-based estimates rather than validated psychometric scores:
+
+- **No evidence:** no recorded attempt for the skill.
+- **Practising:** evidence exists but independent-success criteria are unmet, including a most recent independent failure.
+- **Independent success:** at least three independent scored attempts across two learning dates, at least 80% success among the latest ten, and the latest eligible attempt successful.
+- **Retained:** independent success plus successful independent reviews on two later dates, one at least seven days after first qualifying success. A scored independent failure resets the retention observation period.
+
+Independence is observed within the app; outside help can remain unreported. The dashboard shows this limitation, modality/assistance counts, unscored work, review history, and recommended targets. No handwriting recognition or clinical assessment is implied.
+
+Checks begin after one day. Independent review success doubles the interval to at most 60 days; independent failure halves it (minimum one day) and schedules tomorrow. Assisted or unscored checks cannot increase the interval and also schedule tomorrow. Reviews continue indefinitely and their outcomes remain in the journal. Existing topic review navigation remains compatible and now continues instead of ending after three rounds.
+
+Older saves gain empty evidence fields. Completion and stars are preserved and never converted into correct answers. Completed topics receive baseline recall checks using legacy due dates where available, otherwise due now; the planner spreads those checks across its budget. New daily-recall rounds store competency provenance; already saved rounds without provenance can finish without guessed evidence. The 60-day plan keeps its existing work files and a submission journal, committing canonical evidence before acknowledging separate task completion. Replays use the same durable submission IDs. Failed canonical saves leave the activity available for retry; existing save-error handling covers separate work-file failures.
+
+Run `cargo test --locked`, `cargo build --locked`, and `node tests/adaptive-learning-ui.cjs`. Adaptive tests cover migration, identity across translations, conservative mastery, ongoing schedules, duplicate replay, failed saves, budgeted backlog simulations, deterministic planning, and session persistence. Android acceptance still requires stylus/palm rejection, focus locking, airplane-mode restart, layout, and storage-failure checks on a tablet. Encrypted backup and richer tracing validation remain future work.

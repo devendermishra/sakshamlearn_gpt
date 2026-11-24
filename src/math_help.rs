@@ -299,7 +299,7 @@ pub fn ArithmeticHelper(
     let sign = if addition { "+" } else { "−" };
     rsx! {
         details { class: "math-helper", open: *draft != HelperDraft::default(),
-            summary { {language.text("गिनने में मदद", "Counting helper")} }
+            summary { onclick:move |_|crate::activity::note_helper(), {language.text("गिनने में मदद", "Counting helper")} }
             if let Some(p) = &place {
                 p { "{help.left}: {help.left / 10} {tens_word}, {help.left % 10} {ones_word} · {help.right}: {p.right_tens} {tens_word}, {p.right_ones} {ones_word}" }
                 if p.borrow {

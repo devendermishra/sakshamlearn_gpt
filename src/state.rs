@@ -10,12 +10,18 @@ use std::{
 };
 
 pub const INTERVALS: [u64; 3] = [1, 3, 7];
+fn default_daily_minutes() -> u16 { 15 }
 pub type Stroke = Vec<[f32; 2]>;
 pub type Ink = Vec<Vec<Stroke>>;
 
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct State {
+    pub evidence: crate::assessment::Evidence,
+    #[serde(default = "default_daily_minutes")]
+    pub daily_minutes: u16,
+    pub adaptive: Option<crate::planner::Session>,
+    pub activity_drafts: BTreeMap<String,crate::activity::ActivityDraft>,
     pub catalog: CustomCatalog,
     pub appearance: crate::appearance::Appearance,
     pub math_language: Language,
@@ -38,6 +44,16 @@ pub struct State {
     pub pin: Option<Pin>,
 }
 
+impl Default for State {
+    fn default() -> Self { Self {
+        evidence: Default::default(),daily_minutes:15,adaptive:None,activity_drafts:Default::default(),
+        catalog:Default::default(),appearance:Default::default(),math_language:Default::default(),aba_language:None,
+        aba_practice:Default::default(),session:None,sessions:Default::default(),finished:Default::default(),
+        daily_recall:Default::default(),reviews:Default::default(),samples:Default::default(),history:Default::default(),
+        history_initialized:false,scale:None,vertical_scale:None,pin:None,
+    } }
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct DailyRecall {
     pub date: String,
@@ -47,6 +63,8 @@ pub struct DailyRecall {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct DailyQuestion {
+    #[serde(default)]
+    pub provenance: Option<(String, String, usize)>,
     pub title: String,
     pub question: Question,
     pub english: Option<(String, Question)>,
@@ -78,6 +96,7 @@ impl DailyRecall {
             let english = (subject == "math").then(|| crate::content::english_math_topic(topic));
             for index in indices {
                 questions.push(DailyQuestion {
+                    provenance: crate::assessment::bundled(subject,topic).then(||(subject.into(), topic.progress_id(), index)),
                     title: topic.title.clone(),
                     question: topic.recall[index].clone(),
                     english: english.and_then(|item| item.recall.get(index)
@@ -212,6 +231,7 @@ pub fn day() -> u64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
+        .saturating_add(19_800)
         / 86_400
 }
 
@@ -271,10 +291,11 @@ impl State {
                 id.to_owned(),
                 Review {
                     started: today,
-                    due: today + INTERVALS[0],
+                    due: today.saturating_add(INTERVALS[0]),
                     interval: 0,
                 },
             );
+            crate::assessment::migrate(self,today);
         }
     }
 
@@ -283,12 +304,11 @@ impl State {
             return;
         };
         if missed {
-            review.due = today + 1;
-        } else if let Some(delay) = INTERVALS.get(review.interval + 1) {
-            review.interval += 1;
-            review.due = (review.started + delay).max(today + 1);
+            review.due = today.saturating_add(1);
         } else {
-            self.reviews.remove(id);
+            review.interval = review.interval.saturating_add(1);
+            let delay = 1u64.checked_shl(review.interval.min(6) as u32).unwrap_or(60).min(60);
+            review.due = today.saturating_add(delay);
         }
     }
 }
@@ -316,10 +336,17 @@ pub fn load(path: &Path) -> io::Result<State> {
                 }
                 state.history_initialized = true;
             }
+            if state.evidence.version>1 || state.adaptive.as_ref().is_some_and(|s|!crate::planner::valid_session(s)) {
+                return Err(io::Error::new(io::ErrorKind::InvalidData,"Incompatible assessment state or saved adaptive session; progress was preserved."));
+            }
+            if let Some(s) = state.adaptive.as_mut() { if s.id.is_empty() { s.id=crate::content::new_id(); } }
+            state.daily_minutes = if state.daily_minutes == 0 { 15 } else { state.daily_minutes.clamp(5,30) };
+            crate::assessment::migrate(&mut state, day());
             Ok(state)
         }
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(State {
             history_initialized: true,
+            daily_minutes: 15,
             ..State::default()
         }),
         Err(err) => Err(err),
@@ -384,9 +411,9 @@ mod tests {
         state.review("hi/neema", 103, true);
         assert_eq!(state.reviews["hi/neema"].due, 104);
         state.review("hi/neema", 104, false);
-        assert_eq!(state.reviews["hi/neema"].due, 107);
+        assert_eq!(state.reviews["hi/neema"].due, 108);
         state.review("hi/neema", 107, false);
-        assert!(state.reviews.is_empty());
+        assert_eq!(state.reviews["hi/neema"].due, 115);
     }
 
     #[test]

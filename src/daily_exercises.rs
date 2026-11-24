@@ -565,20 +565,29 @@ fn subject_name(subject: &str) -> &'static str {
 }
 
 #[component]
-pub fn DailyExercises(directory: PathBuf, math_language: Language, scale: PaperScale) -> Element {
+pub fn DailyExercises(directory: PathBuf, math_language: Language, scale: PaperScale, evidence_save: Callback<Vec<crate::assessment::Attempt>,Result<(),String>>) -> Element {
     let path = directory.join("daily-exercises.json");
     let (mut progress, loaded) = crate::persistence::use_loaded(|| load(&path));
     let error = loaded.as_ref().err().cloned();
     let writable = loaded.is_ok();
-    let failed = use_signal(|| false);
+    let mut failed = use_signal(|| false);
+    let mut pending_evidence = use_signal(||None::<Progress>);
     let save_progress = crate::persistence::use_saver(path.clone(), failed);
     let persist = use_callback(move |mut next: Progress| {
         // No writes after a load error, including from delayed canvas events.
         if writable {
+            // Canonical evidence must be durable before separate task completion is acknowledged.
+            if evidence_save.call(next.lessons.evidence.attempts.values().cloned().collect()).is_err() {
+                pending_evidence.set(Some(next)); failed.set(true); return;
+            }
+            pending_evidence.set(None);
             next.render_revision = progress.peek().render_revision + 1;
             save_progress.call(next.clone());
             progress.set(next);
         }
+    });
+    use_effect(move || {
+        if writable && evidence_save.call(progress.peek().lessons.evidence.attempts.values().cloned().collect()).is_err() { failed.set(true); }
     });
     if let Some(error) = error {
         return rsx! { section { h1 { "Daily exercise plans · रोज़ के अभ्यास" }
@@ -619,7 +628,7 @@ pub fn DailyExercises(directory: PathBuf, math_language: Language, scale: PaperS
             p { "{finished_days} / {plan.days.len()} days complete · दिन पूरे" }
             if failed() {
                 p { role: "alert", "Work could not be saved. काम सहेजा नहीं गया।" }
-                button { onclick: move |_| persist.call(progress()), "Retry save · फिर सहेजें" }
+                button { onclick: move |_| persist.call(pending_evidence().unwrap_or_else(||progress())), "Retry save · फिर सहेजें" }
             }
             if let Some(task) = active {
                 nav { class: "actions",
@@ -798,7 +807,14 @@ fn TaskRunner(
             let index = *index;
             if *recall {
                 return rsx! { Activity { kind: Kind::Choice(topic.recall[index].clone()), initial: Ink::new(), scale, language, recall: true,
-                on_input: move |input| { if matches!(input,Input::Answer(_)) { done.call(()); } } } };
+                on_input: move |input: Input| {
+                    let (input,context) = input.unpack();
+                    if matches!(input,Input::Answer(_)) {
+                        let mut n = progress.clone();
+                        if let Some(a) = crate::assessment::attempt(&task.subject,topic,index,true,&input,context.unwrap_or_default(),"daily-plan",false,state::day()) { n.lessons.evidence.record(a); }
+                        n.advance(&task); persist.call(n);
+                    }
+                } } };
             }
             let step = Step {
                 subject: &task.subject,

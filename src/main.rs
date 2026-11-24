@@ -1,3 +1,8 @@
+#[cfg(test)]
+mod adaptive_tests;
+mod assessment;
+mod mastery;
+mod planner;
 mod exercise_lock;
 mod aba;
 mod daily_exercises;
@@ -22,7 +27,6 @@ mod worksheets;
 mod rough_sheet;
 mod tracing_practice;
 
-use activity::Activity;
 use content::{CustomCatalog, Kind, PracticeSkill, Topic};
 use dioxus::prelude::*;
 use language::Language;
@@ -50,6 +54,7 @@ fn main() {
 enum Page {
     Subjects,
     DailyExercises,
+    Today,
     Aba,
     Basic,
     Subject,
@@ -109,6 +114,18 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
             state::save(&pin_path, &next).map_err(|error| error.to_string())?;
             data.set(next);
         }
+        Ok(())
+    });
+    let durable_path = path.clone();
+    let durable = use_callback(move |next: State| {
+        state::save(&durable_path,&next).map_err(|error| error.to_string())?;
+        data.set(next); save_error.set(false); Ok(())
+    });
+    let evidence_save = use_callback(move |attempts: Vec<assessment::Attempt>| {
+        let mut next = data.peek().clone(); let mut changed = false;
+        let mut attempts = attempts; attempts.sort_by_key(|a|(a.day,a.timestamp,a.submission_id.clone()));
+        for mut a in attempts { a.source = "daily-plan".into(); changed |= next.evidence.record(a); }
+        if changed { durable.call(next)?; }
         Ok(())
     });
     let local_folder = path.with_file_name("learner-work");
@@ -257,9 +274,10 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
         math_selected && active().is_some_and(|(id, _)| id.starts_with("new-practice-"));
 
     let body = match page() {
+        Page::Today => rsx! { planner::Today { data, commit, durable, grade: grade() } },
         Page::DailyExercises => rsx! {
             daily_exercises::DailyExercises {
-                directory: local_folder.clone(), math_language: snapshot.math_language,
+                directory: local_folder.clone(), math_language: snapshot.math_language, evidence_save,
                 scale: PaperScale::from_saved(snapshot.scale, snapshot.vertical_scale)
             }
         },
@@ -270,6 +288,13 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
             }
             button { disabled: crate::exercise_lock::locked(), class: "primary daily-home", "data-subject": "daily-exercises",
                 onclick: crate::exercise_lock::guard(move |_| page.set(Page::DailyExercises)), "Daily exercise plans · रोज़ के अभ्यास" }
+            button { class: "primary", disabled: crate::exercise_lock::locked(),
+                onclick: crate::exercise_lock::guard(move |_| page.set(Page::Today)), "Today's learning · आज की पढ़ाई" }
+            label { "Daily learning class "
+                select { disabled: crate::exercise_lock::locked(), aria_label: "Daily learning class", value: "{grade()}", onchange: move |e| grade.set(e.value().parse().unwrap_or(2)),
+                    option { value: "1", "Class 1" } option { value: "2", "Class 2" }
+                }
+            }
             div { class: "subject-cards home-subjects",
                 for item in snapshot.catalog.subjects() {
                     {
@@ -463,12 +488,13 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                 rsx! {
                     h1 { "{title}" }
                     if let Some(kind) = kind {
-                        Activity { key: "jump-{id}-{index}", picture, kind, initial: ink, scale, language, handwriting,
+                        activity::RememberedActivity { key: "jump-{id}-{index}", data, commit, memory_key: format!("jump-{subject}-{id}-{index}"), picture, kind, initial: ink, scale, language, handwriting,
                             on_input: move |input: progress::Input| {
                                 if !input.is_draft() && *exercise_locked.peek() { return; }
                                 let mut next = data.peek().clone();
                                 let step = Step { subject: &subject, topic: &topic, review: false, index };
                                 if let Some(done) = step.trace_only(&mut next, input, &state::sample_date()) {
+                                    if done { next.activity_drafts.remove(&format!("jump-{subject}-{id}-{index}")); }
                                     commit.call(next);
                                     if done { page.set(Page::Group); }
                                 }
@@ -491,19 +517,27 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                             item.english.as_ref().map(|(title, question)| (title, question))
                                 .unwrap_or((&item.title, &item.question))
                         } else { (&item.title, &item.question) };
+                        let provenance = item.provenance.clone();
                         let current = position + 1;
                         let total = round.questions.len();
                         rsx! { section { key: "daily-{date}-{position}",
                             p { class: "step", "{title} · {current} / {total}" }
-                            Activity { kind: Kind::Choice(question.clone()),
+                            activity::RememberedActivity { data, commit, memory_key: format!("daily-{daily_key}-{date}-{position}"), kind: Kind::Choice(question.clone()),
                                 initial: Vec::new(), scale: PaperScale::from_saved(snapshot.scale, snapshot.vertical_scale),
                                 recall: true, language, handwriting, on_input: move |input: progress::Input| {
                                 if !input.is_draft() && *exercise_locked.peek() { return; }
+                                    let (input,context) = input.unpack();
                                     if !matches!(input, progress::Input::Answer(_)) { return; }
                                     let mut next = data.peek().clone();
                                     if let Some(round) = next.daily_recall.get_mut(&daily_key) {
                                         if round.date == date && round.position == position {
                                             round.position += 1;
+                                            next.activity_drafts.remove(&format!("daily-{daily_key}-{date}-{position}"));
+                                            if let Some((subject,id,index)) = &provenance {
+                                                if let Some(topic) = content::BUNDLED.iter().find(|s|&s.id==subject).and_then(|s|s.topics.iter().find(|t|t.progress_id()==*id)) {
+                                                    if let Some(a) = assessment::attempt(subject,topic,*index,true,&input,context.unwrap_or_default(),"daily-recall",true,state::day()) { next.evidence.record(a); }
+                                                }
+                                            }
                                             commit.call(next);
                                         }
                                     }
@@ -574,13 +608,15 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                   section { key: "{activity_key}",
                     h1 { "{title}" }
                     if recall { h2 { "{recall_label}" } } else { p { class: "step", "{practice_label} {index + 1} / {total}" } }
-                    Activity { picture, kind, initial: ink, helper_draft, scale, recall, language, handwriting,
+                    activity::RememberedActivity { data, commit, memory_key: format!("session-{subject}-{}-{review}-{index}",topic.progress_id()), picture, kind, initial: ink, helper_draft, scale, recall, language, handwriting,
                         ruled_paper: content::Paper::for_subject(&subject), revision_source,
                         on_input: move |input: progress::Input| {
                                 if !input.is_draft() && *exercise_locked.peek() { return; }
                             let mut next = data.peek().clone();
                             let step = Step { subject: &subject, topic: &topic, review, index };
+                            let submitted = !input.is_draft();
                             if let Some(outcome) = step.apply(&mut next, input, state::day(), &state::sample_date()) {
+                                if submitted { next.activity_drafts.remove(&format!("session-{subject}-{}-{review}-{index}",topic.progress_id())); }
                                 commit.call(next);
                                 match outcome {
                                     Outcome::Continue => {}
@@ -625,7 +661,7 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
                 subject: selected.clone(), grade: grade(), language,
                 scale: PaperScale::from_saved(snapshot.scale, snapshot.vertical_scale) }
         },
-        Page::Parent(_) => rsx! { parent::Parent { data, publish, save_calibration, save_pin, focus_controls } },
+        Page::Parent(_) => rsx! { parent::Parent { data, publish, save_calibration, save_pin, focus_controls, durable } },
     };
     let pin = snapshot.pin.clone();
     let appearance = snapshot.appearance;
@@ -641,7 +677,7 @@ fn LearningApp(path: PathBuf, initial: StateInput) -> Element {
             "data-cover": appearance.background.id(), lang: language.code(),
             header { class: if exercise_locked() { "exercise-locked-header" } else { "" },
                 if exercise_locked() { exercise_lock::LockControl { language, compact: true } }
-                if matches!(page(), Page::Subject | Page::Aba | Page::Basic | Page::DailyExercises) {
+                if matches!(page(), Page::Subject | Page::Aba | Page::Basic | Page::DailyExercises | Page::Today) {
                     button { disabled: crate::exercise_lock::locked(), class: "quiet", onclick: crate::exercise_lock::guard(move |_| page.set(Page::Subjects)), {language.text("‹ विषय", "‹ Subjects")} }
                 } else if page() == Page::Parent(true) {
                     button { disabled: crate::exercise_lock::locked(), class: "quiet", onclick: crate::exercise_lock::guard(move |_| page.set(Page::Aba)), "‹ {aba_name}" }

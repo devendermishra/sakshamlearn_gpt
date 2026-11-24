@@ -11,6 +11,7 @@ use dioxus::prelude::*;
 #[component]
 pub fn Parent(
     data: Signal<State>,
+    durable: Callback<State,Result<(),String>>,
     save_pin: Callback<Pin, Result<(), String>>,
     focus_controls: Controls,
     publish: Callback<CustomCatalog, Result<(), String>>,
@@ -74,6 +75,7 @@ pub fn Parent(
                 button { class: "primary", onclick: move |_| manage.set(true), "Manage activities" }
                 FocusButton { controls: focus_controls, has_pin: true, language: Language::English }
                 Calibration { scale, measured, on_save: save_calibration }
+                MasteryDashboard { data, durable }
                 h2 { "Writing review" }
                 p { "Due reviews: {review_count}" }
                 if samples.is_empty() { p { "Saved writing will appear here." } }
@@ -195,4 +197,84 @@ fn Calibration(
             }
         }
     }
+}
+
+
+#[component]
+fn MasteryDashboard(data: Signal<State>, durable: Callback<State,Result<(),String>>) -> Element {
+    let mut error = use_signal(String::new);
+    let snapshot = data.read();
+    let mut selected_subject = use_signal(|| "en".to_string());
+    let mut selected_grade = use_signal(|| 2u8);
+    let mut evidence_page = use_signal(||0usize);
+    let catalog = crate::assessment::catalog();
+    let mut competencies = std::collections::BTreeMap::new();
+    for m in &catalog { if m.subject==selected_subject() && m.grade==selected_grade() { competencies.entry(m.competency.clone()).or_insert(m); } }
+    let mut competencies:Vec<_>=competencies.into_iter().collect();
+    competencies.sort_by_key(|(id,_)|(!snapshot.evidence.attempts.values().any(|a|a.competency_id==*id),id.clone()));
+    let overdue=snapshot.evidence.reviews.values().filter(|c|c.due<=state::day()).count();
+    let pages=competencies.len().div_ceil(40).max(1);
+    let current_page=evidence_page().min(pages-1);
+    let recommendation = crate::planner::build(&snapshot,selected_grade(),state::day());
+    rsx! { section { class: "mastery-dashboard",
+        h2 { "Learning evidence" }
+        p { "These are rule-based estimates. Independence is observed within the app; adult help may be unreported. Completion alone is not mastery." }
+        p { "Overdue competency checks: {overdue}" }
+        p { "Legacy and current topic completions: {snapshot.finished.len()}" }
+        label { "Daily estimated minutes "
+            select { aria_label: "Daily estimated minutes", value: "{snapshot.daily_minutes}",
+                onchange: move |e| {
+                    if let Ok(value) = e.value().parse::<u16>() { let mut next=data.peek().clone(); next.daily_minutes=value.clamp(5,30);
+                        match durable.call(next) { Ok(())=>error.set(String::new()), Err(e)=>error.set(e) } }
+                },
+                for minutes in 5..=30 { option { value: "{minutes}", "{minutes}" } }
+            }
+        }
+        h3 { "Subject summaries" }
+        for subject in ["en","hi","math"] {
+            {
+                let ids: std::collections::BTreeSet<_> = catalog.iter().filter(|m|m.subject==subject).map(|m|m.competency.as_str()).collect();
+                let established = ids.iter().filter(|id|matches!(crate::mastery::estimate(&snapshot.evidence,id).level,crate::mastery::Level::IndependentSuccess|crate::mastery::Level::Retained)).count();
+                let retained = ids.iter().filter(|id|crate::mastery::estimate(&snapshot.evidence,id).level==crate::mastery::Level::Retained).count();
+                rsx! { p { "{subject}: {established} / {ids.len()} with independent success; {retained} retained" } }
+            }
+        }
+        label { "Subject " select { aria_label: "Evidence subject", value: selected_subject(), onchange: move |e| { selected_subject.set(e.value()); evidence_page.set(0); },
+            option { value: "en", "English" } option { value: "hi", "Hindi" } option { value: "math", "Mathematics" }
+        } }
+        label { "Class " select { aria_label: "Evidence class", value: "{selected_grade()}", onchange: move |e| { selected_grade.set(e.value().parse().unwrap_or(2)); evidence_page.set(0); },
+            option { value: "1", "Class 1" } option { value: "2", "Class 2" }
+        } }
+        h3 { "Recommended next targets" }
+        for t in recommendation.tasks.iter().take(6) { p { "{t.label}: {t.reason.label()} · about {t.minutes} min" } }
+        h3 { "Competencies and retention" }
+        nav { class: "actions", aria_label: "Competency pages",
+            button { disabled:current_page==0,onclick:move |_|evidence_page.set(current_page-1), "Previous competencies" }
+            span { "Page {current_page+1} / {pages}" }
+            button { disabled:current_page+1>=pages,onclick:move |_|evidence_page.set(current_page+1), "Next competencies" }
+        }
+        for (id,mapping) in competencies.into_iter().skip(current_page*40).take(40) {
+            {
+                let summary=crate::mastery::estimate(&snapshot.evidence,&id);
+                let check=snapshot.evidence.reviews.get(&id);
+                let due=check.map(|c| if c.due<=state::day() { "Overdue check".to_string() } else { format!("Review in {} days",c.due-state::day()) }).unwrap_or_else(||"No review evidence".into());
+                let mut history:Vec<_>=snapshot.evidence.attempts.values().filter(|a|a.competency_id==id&&a.review).collect();
+                history.sort_by_key(|a|(a.day,a.timestamp,&a.submission_id));
+                rsx! { details { summary { "{mapping.label} · {summary.level.label()}" }
+                    p { "{due}" }
+                    p { "Independent scored: {summary.independent} · Assisted: {summary.assisted} · Unscored: {summary.unscored}" }
+                    p { "Review successes: {summary.review_successes} / {summary.reviews}" }
+                    for (mode,count) in summary.modalities { p { "{mode}: {count}" } }
+                    for (help,count) in summary.assistance { p { "{help}: {count}" } }
+                    for attempt in history.iter().rev().take(10) {
+                        { let result=match attempt.correct {Some(true)=>"Correct",Some(false)=>"Needs practice",None=>"Unscored"};
+                          let date=i32::try_from(attempt.day).ok().and_then(|d|d.checked_add(2_440_588)).and_then(|d|time::Date::from_julian_day(d).ok()).map(|d|d.to_string()).unwrap_or_else(||"Earlier review".into());
+                          rsx! { p { "{date} · {result} · {attempt.context.assistance.label()} · {attempt.mode.label()}" } }
+                        }
+                    }
+                } }
+            }
+        }
+        p { role: "alert", "{error}" }
+    } }
 }

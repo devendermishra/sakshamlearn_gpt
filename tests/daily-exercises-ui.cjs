@@ -121,7 +121,8 @@ const open=async page=>{
   assert.ok((await page.locator('[data-task-id="'+active+'"]').innerText()).includes('✓'));
   await button(page,'Combined · 60 days').click();
   // Return to the overview even when a second Basic activity follows.
-  const back=button(page,'Back to day · दिन पर लौटें');if(await back.count()) await back.click();
+  const combined=await waitSave(file,p=>p.selected_plan==='combined');
+  const back=button(page,'Back to day · दिन पर लौटें');if(combined.active) await back.click();
   await button(page,'Continue next unfinished day · अगला अधूरा दिन').click();
   await page.getByRole('heading',{name:/^Day 1 ·/}).waitFor();
   await page.screenshot({path:path.join(output,'resumed.png'),fullPage:true});
@@ -154,7 +155,8 @@ const open=async page=>{
   const enSummary=page.locator('[data-daily-subject="en"] summary');
   if(!await page.locator('[data-task-id="'+lessonChoice+'"]').isVisible()) await enSummary.click();
   assert.ok((await page.locator('[data-task-id="'+lessonChoice+'"]').innerText()).includes('✓'));
-  const back=button(page,'Back to day · दिन पर लौटें');if(await back.count()) await back.click();
+  const combined=await waitSave(file,p=>p.selected_plan==='combined');
+  const back=button(page,'Back to day · दिन पर लौटें');if(combined.active) await back.click();
   await page.getByText('Choose a day · दिन चुनें',{exact:true}).click();
   for(let day=60;day>=31&&!worksheet;day--) {
    await page.locator(`[data-day="${day}"]`).click();

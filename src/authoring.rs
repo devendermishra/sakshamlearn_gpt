@@ -158,7 +158,7 @@ pub fn Authoring(
                                     language, ruled_paper: paper, revision_source: previous_writing(),
                                     handwriting: subject_id == "en",
                                     on_input: move |input: Input| if !input.is_draft() {
-                                        previous_writing.set(match input {
+                                        previous_writing.set(match input.unpack().0 {
                                             Input::Submit(ink) => output_lines.map(|lines| (ink, lines)),
                                             _ => None,
                                         });

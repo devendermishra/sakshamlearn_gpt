@@ -11,6 +11,8 @@ use crate::{
 #[derive(Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct ActivityDraft {
+    #[serde(default)]
+    pub assessment: Option<crate::assessment::Context>,
     pub selected: Option<usize>,
     pub missed: bool,
     pub choices_shown: bool,
@@ -22,6 +24,22 @@ pub struct ActivityDraft {
 
 #[derive(Clone, Copy)]
 pub struct ActivityMemory(pub Signal<ActivityDraft>);
+#[derive(Clone, Copy)]
+struct AssessmentMemory(Signal<crate::assessment::Context>);
+fn note_error() {
+    if let Some(mut m) = try_consume_context::<AssessmentMemory>() { m.0.write().prior_errors = true; }
+}
+fn note_hint() {
+    if let Some(mut m) = try_consume_context::<AssessmentMemory>() { let mut c=m.0.write(); c.hint_used=true; c.model_visible=true; }
+}
+pub(crate) fn note_solution() {
+    if let Some(mut m) = try_consume_context::<AssessmentMemory>() { let mut c=m.0.write(); c.solution_exposed=true; c.model_visible=true; }
+}
+
+
+pub(crate) fn note_helper() {
+    if let Some(mut m)=try_consume_context::<AssessmentMemory>() {m.0.write().helper_used=true;}
+}
 
 #[component]
 pub fn AnswerFeedback(correct: bool, text: String) -> Element {
@@ -106,11 +124,11 @@ fn SolveActivity(
                 }
             } else {
                 NumberCheck { label: answer_label, expected: answer, language,
-                    on_correct: move |_| correct.set(Some(true)), on_wrong: move |_| tried.set(true) }
+                    on_correct: move |_| correct.set(Some(true)), on_wrong: move |_| { note_error(); tried.set(true); } }
                 button { class: "quiet", onclick: move |_| { checked.set(None); tried.set(false); },
                     {language.text("लिखा हुआ बदलो", "Edit writing")} }
                 if tried() {
-                    button { class: "quiet", onclick: move |_| correct.set(Some(false)),
+                    button { class: "quiet", onclick: move |_| { note_solution(); correct.set(Some(false)); },
                         {language.text("हल दिखाओ", "Show worked solution")} }
                 }
             }
@@ -169,7 +187,7 @@ fn Choice(
         if !show() {
             p { {language.text("पहले अपना जवाब सोचो।", "Think of your answer first.")} }
             button { class: "primary", onclick: move |_| show.set(true), {language.text("विकल्प देखो", "Show choices")} }
-            button { class: "quiet", onclick: move |_| { missed.set(true); show.set(true); }, {language.text("संकेत चाहिए", "I need a hint")} }
+            button { class: "quiet", onclick: move |_| { note_hint(); missed.set(true); show.set(true); }, {language.text("संकेत चाहिए", "I need a hint")} }
         } else {
         div { class: "cards answers",
             for (index, option) in q.options.iter().enumerate() {
@@ -177,7 +195,7 @@ fn Choice(
                     if !correct() {
                         selected.set(Some(index));
                         if index == q.answer { correct.set(true); }
-                        else { missed.set(true); wrong.set(true); }
+                        else { note_error(); missed.set(true); wrong.set(true); }
                     }
                 }, "{option}" }
             }
@@ -334,7 +352,7 @@ fn WrittenAnswer(
 pub(crate) fn TableConcept(size: u8, language: Language) -> Element {
     rsx! {
         details { class: "table-concept",
-            summary { {language.text("पहाड़े का मतलब समझो", "Understand the table")} }
+            summary { onclick:move |_|note_solution(), {language.text("पहाड़े का मतलब समझो", "Understand the table")} }
             p { {match language {
                 Language::Hindi => format!("{size} × समूहों की संख्या: हर समूह में {size} वस्तुएँ हैं।"),
                 Language::English => format!("{size} × number of groups: each group contains {size} objects."),
@@ -424,7 +442,7 @@ fn TableActivity(
                     NumberCheck { key: "{groups}", label: format!("{size} × {groups} ="),
                         expected: vec![size * groups], language,
                         on_correct: move |_| completed.write()[usize::from(groups - 1)] = true,
-                        on_wrong: move |_| missed.set(true) }
+                        on_wrong: move |_| { note_error(); missed.set(true); } }
                 }
             }
             if completed().iter().all(|done| *done) {
@@ -449,7 +467,23 @@ pub fn Activity(
     #[props(default)] revision_source: Option<(Ink, usize)>,
     on_input: EventHandler<Input>,
 ) -> Element {
+    let memory = try_use_context::<ActivityMemory>();
+    let mut evidence = use_signal(|| memory.and_then(|m|m.0.peek().assessment.clone()).unwrap_or_default());
+    use_context_provider(|| AssessmentMemory(evidence));
+    use_effect(move || {
+        let context = evidence();
+        if let Some(mut memory) = memory {
+            if memory.0.peek().assessment.as_ref()!=Some(&context) {
+                let mut next = memory.0.peek().clone(); next.assessment = Some(context); memory.0.set(next);
+            }
+        }
+    });
     let on_input = crate::exercise_lock::input_handler(on_input);
+    let on_input = EventHandler::new(move |input: Input| {
+        if matches!(input, Input::Helper(_)) { evidence.write().helper_used = true; }
+        if input.is_draft() { on_input.call(input); }
+        else { on_input.call(Input::Assessed(Box::new(input),evidence.peek().clone())); }
+    });
     let on_done = move |missed| on_input.call(Input::Answer(missed));
     let on_ink = move |ink| on_input.call(Input::Draft(ink));
     let on_written = move |ink| on_input.call(Input::Submit(ink));
@@ -552,6 +586,43 @@ pub fn Activity(
                 } }
             }
         }
+        details { class: "assessment-help",
+            summary { {language.text("मदद दर्ज करें (वैकल्पिक)", "Record adult help (optional)")} }
+            label { {language.text("मदद का स्तर", "Adult assistance")}
+                select { disabled: crate::exercise_lock::locked(), aria_label: "Adult assistance", value: format!("{:?}", evidence.read().assistance),
+                    onchange: move |event| {
+                        use crate::assessment::Assistance::*;
+                        evidence.write().assistance = match event.value().as_str() {
+                            "Independent"=>Independent, "VisualPrompt"=>VisualPrompt,
+                            "VerbalPrompt"=>VerbalPrompt, "Guided"=>Guided, _=>Unreported };
+                    },
+                    option { value: "Unreported", "Unreported · दर्ज नहीं" }
+                    option { value: "Independent", "Independent · स्वयं" }
+                    option { value: "VisualPrompt", "Visual prompt · दिखाकर" }
+                    option { value: "VerbalPrompt", "Verbal prompt · बोलकर" }
+                    option { value: "Guided", "Guided · साथ में" }
+                }
+            }
+        }
         crate::exercise_lock::LockControl { language }
         {content} } }
+}
+
+
+#[component]
+pub fn RememberedActivity(
+    data: Signal<crate::state::State>, commit: Callback<crate::state::State>, memory_key: String,
+    kind: Kind, #[props(default)] picture: Option<String>, initial: Ink, scale: PaperScale,
+    #[props(default)] recall: bool, #[props(default)] helper_draft: HelperDraft,
+    #[props(default)] language: Language, #[props(default)] ruled_paper: Paper,
+    #[props(default)] handwriting: bool, #[props(default)] revision_source: Option<(Ink,usize)>,
+    on_input: EventHandler<Input>,
+) -> Element {
+    let memory = use_signal(||data.peek().activity_drafts.get(&memory_key).cloned().unwrap_or_default());
+    use_context_provider(||ActivityMemory(memory));
+    use_effect(move || {
+        let draft=memory(); let mut next=data.peek().clone();
+        if next.activity_drafts.get(&memory_key)!=Some(&draft) { next.activity_drafts.insert(memory_key.clone(),draft); commit.call(next); }
+    });
+    rsx! { Activity { kind,picture,initial,scale,recall,helper_draft,language,ruled_paper,handwriting,revision_source,on_input } }
 }
